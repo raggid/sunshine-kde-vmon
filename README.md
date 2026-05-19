@@ -21,12 +21,12 @@ Scripts para streaming com [Sunshine](https://github.com/LizardByte/Sunshine) no
 ## Instalação
 
 ```bash
-git clone https://github.com/raggid/sunshine-kde-vmon.git
-cd sunshine-kde-vmon
-./install.sh
+git clone https://github.com/raggid/sunshine-kde-vmon.git ~/projects/sunshine-kde-vmon
 ```
 
-Ou copie manualmente os scripts para `~/.local/bin` e torne-os executáveis.
+Aponte os `prep-cmd` do Sunshine para o diretório do clone (caminhos absolutos).
+
+Alternativa: `./install.sh` copia os scripts para `~/.local/bin`.
 
 ## Configuração
 
@@ -49,15 +49,7 @@ export SUNSHINE_PRIMARY_OUTPUT=DP-2
 
 ### Sunshine `apps.json`
 
-Veja `examples/apps.json` para integrar os scripts como `prep-cmd` nos apps Desktop, Desktop Exclusive e Steam Big Picture. Substitua `/home/USER` pelo seu caminho home e ajuste os UUIDs se necessário (o Sunshine gera novos ao adicionar apps pela UI).
-
-Adicione ao `env` do `apps.json`:
-
-```json
-"env": {
-    "PATH": "$(PATH):$(HOME)/.local/bin"
-}
-```
+Veja `examples/apps.json` para integrar os scripts como `prep-cmd` nos apps Desktop, Desktop Exclusive e Steam Big Picture. Substitua `/home/USER/projects/sunshine-kde-vmon` pelo caminho do seu clone e ajuste os UUIDs se necessário (o Sunshine gera novos ao adicionar apps pela UI).
 
 Reinicie o Sunshine após alterações:
 
