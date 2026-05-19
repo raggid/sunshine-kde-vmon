@@ -9,8 +9,8 @@
             "name": "Desktop",
             "prep-cmd": [
                 {
-                    "do": "${HOME}/.local/bin/sunshine-start-vmon.sh",
-                    "undo": "${HOME}/.local/bin/sunshine-stop-vmon.sh"
+                    "do": "/home/USER/.local/bin/sunshine-start-vmon.sh",
+                    "undo": "/home/USER/.local/bin/sunshine-stop-vmon.sh"
                 }
             ],
             "uuid": "EE4A7268-2E91-C50B-DB88-4C26F785AC53",
@@ -25,8 +25,8 @@
             "name": "Desktop Exclusive",
             "prep-cmd": [
                 {
-                    "do": "${HOME}/.local/bin/sunshine-start-vmon-offmon.sh",
-                    "undo": "${HOME}/.local/bin/sunshine-stop-vmon-offmon.sh"
+                    "do": "/home/USER/.local/bin/sunshine-start-vmon-offmon.sh",
+                    "undo": "/home/USER/.local/bin/sunshine-stop-vmon-offmon.sh"
                 }
             ],
             "uuid": "A3F8C1D2-4B5E-6F70-8A91-2C3D4E5F6071",
@@ -43,8 +43,8 @@
             "name": "Steam Big Picture",
             "prep-cmd": [
                 {
-                    "do": "${HOME}/.local/bin/sunshine-start-vmon-offmon.sh",
-                    "undo": "${HOME}/.local/bin/sunshine-stop-vmon-offmon.sh"
+                    "do": "/home/USER/.local/bin/sunshine-start-vmon-offmon.sh",
+                    "undo": "/home/USER/.local/bin/sunshine-stop-vmon-offmon.sh"
                 },
                 {
                     "do": "",
