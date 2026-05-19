@@ -21,7 +21,7 @@ Scripts para streaming com [Sunshine](https://github.com/LizardByte/Sunshine) no
 ## Instalação
 
 ```bash
-git clone https://github.com/USER/sunshine-kde-vmon.git
+git clone https://github.com/raggid/sunshine-kde-vmon.git
 cd sunshine-kde-vmon
 ./install.sh
 ```
