@@ -55,5 +55,8 @@
             "wait-all": true
         }
     ],
+    "env": {
+        "PATH": "$(PATH):$(HOME)/.local/bin"
+    },
     "version": 2
 }

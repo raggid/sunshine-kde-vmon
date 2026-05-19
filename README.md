@@ -51,6 +51,8 @@ export SUNSHINE_PRIMARY_OUTPUT=DP-2
 
 Veja `examples/apps.json` para integrar os scripts como `prep-cmd` nos apps Desktop, Desktop Exclusive e Steam Big Picture. Substitua `/home/USER/projects/sunshine-kde-vmon` pelo caminho do seu clone e ajuste os UUIDs se necessário (o Sunshine gera novos ao adicionar apps pela UI).
 
+O Sunshine **exige** a chave `env` no `apps.json` (mesmo vazia). Sem ela, os apps não aparecem nos clientes Moonlight/Artemis.
+
 Reinicie o Sunshine após alterações:
 
 ```bash
