@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
-# Restore physical monitor priority
-kscreen-doctor output.DP-2.priority.1
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=sunshine-vmon-common.sh
+source "${SCRIPT_DIR}/sunshine-vmon-common.sh"
 
-# Kill virtual display
-if [ -f /tmp/sunshine-vmon.pid ]; then
-  kill "$(cat /tmp/sunshine-vmon.pid)" 2>/dev/null || true
-  rm -f /tmp/sunshine-vmon.pid
-fi
+# Restaura o fisico e desliga o virtual (processo krfb continua rodando)
+kscreen-doctor \
+  "output.${PRIMARY_OUTPUT}.enable" \
+  "output.${PRIMARY_OUTPUT}.priority.1" \
+  "output.${VMON_OUTPUT}.disable"
 
-# Restore Sunshine output to physical display
-CONF="${HOME}/.config/sunshine/sunshine.conf"
-sed -i '/^output_name/d' "$CONF"
-echo "output_name = DP-1" >> "$CONF"
+set_sunshine_output "${PRIMARY_OUTPUT}"

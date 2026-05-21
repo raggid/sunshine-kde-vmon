@@ -2,14 +2,31 @@
 
 Scripts para streaming com [Sunshine](https://github.com/LizardByte/Sunshine) no KDE Plasma (Wayland), usando monitor virtual (`krfb-virtualmonitor`) e `kscreen-doctor`.
 
+O monitor virtual fica **sempre criado** (serviço systemd) e é apenas **ligado/desligado** ao iniciar ou terminar o stream. Isso evita o erro do Sunshine de “nenhum monitor conectado” quando o monitor físico está desligado.
+
+## Arquitetura
+
+```
+Login → sunshine-vmon.service (krfb-virtualmonitor)
+              ↓
+        Virtual-sunshine-vmon existe, desabilitado no KDE
+              ↓
+Stream start → kscreen-doctor enable virtual (+ disable físico no modo Exclusive)
+              ↓
+Stream stop  → kscreen-doctor disable virtual, enable físico
+              ↓
+        krfb continua rodando em segundo plano
+```
+
 ## Scripts
 
 | Script | Descrição |
 |--------|-----------|
-| `sunshine-start-vmon.sh` | Cria display virtual na resolução do cliente; monitor físico permanece ligado |
-| `sunshine-stop-vmon.sh` | Remove o display virtual e restaura o monitor físico |
-| `sunshine-start-vmon-offmon.sh` | Igual ao anterior, mas **desativa** o monitor físico |
-| `sunshine-stop-vmon-offmon.sh` | Reativa o monitor físico e remove o display virtual |
+| `sunshine-vmon-service.sh` | Serviço: cria o monitor virtual e deixa desabilitado |
+| `sunshine-start-vmon.sh` | Liga o virtual (físico permanece ligado) |
+| `sunshine-stop-vmon.sh` | Desliga o virtual, restaura o físico |
+| `sunshine-start-vmon-offmon.sh` | Liga o virtual e desliga o físico (troca atomica) |
+| `sunshine-stop-vmon-offmon.sh` | Religa o físico e desliga o virtual |
 
 ## Requisitos
 
@@ -22,53 +39,63 @@ Scripts para streaming com [Sunshine](https://github.com/LizardByte/Sunshine) no
 
 ```bash
 git clone https://github.com/raggid/sunshine-kde-vmon.git ~/projects/sunshine-kde-vmon
+cd ~/projects/sunshine-kde-vmon
+./install.sh
 ```
 
-Aponte os `prep-cmd` do Sunshine para o diretório do clone (caminhos absolutos).
+O `install.sh` habilita o serviço `sunshine-vmon.service` (monitor virtual persistente).
 
-Alternativa: `./install.sh` copia os scripts para `~/.local/bin`.
+Aponte os `prep-cmd` do Sunshine para o diretório do clone (caminhos absolutos). Veja `examples/apps.json`.
 
 ## Configuração
 
 ### Monitor físico
 
-Descubra o nome do conector:
-
 ```bash
 kscreen-doctor -o
 ```
 
-Ajuste nos scripts conforme necessário:
+Variável `SUNSHINE_PRIMARY_OUTPUT` (padrão: `DP-2`) nos scripts `-offmon`.
 
-- `sunshine-stop-vmon.sh` — linha `kscreen-doctor output.DP-2...` e `output_name` em `sunshine.conf`
-- Scripts `-offmon` — variável `SUNSHINE_PRIMARY_OUTPUT` (padrão: `DP-2`)
+### Resolução padrão do monitor persistente
+
+Definida no serviço (padrão 1920x1080). No início de cada stream, os scripts ajustam para a resolução do cliente (`SUNSHINE_CLIENT_*`).
 
 ```bash
-export SUNSHINE_PRIMARY_OUTPUT=DP-2
+# opcional, em ~/.config/systemd/user/sunshine-vmon.service.d/override.conf
+[Service]
+Environment=SUNSHINE_VMON_WIDTH=1920
+Environment=SUNSHINE_VMON_HEIGHT=1080
+Environment=SUNSHINE_VMON_FPS=60
 ```
 
 ### Sunshine `apps.json`
 
-Veja `examples/apps.json` para integrar os scripts como `prep-cmd` nos apps Desktop, Desktop Exclusive e Steam Big Picture. Substitua `/home/USER/projects/sunshine-kde-vmon` pelo caminho do seu clone e ajuste os UUIDs se necessário (o Sunshine gera novos ao adicionar apps pela UI).
-
-O Sunshine **exige** a chave `env` no `apps.json` (mesmo vazia). Sem ela, os apps não aparecem nos clientes Moonlight/Artemis.
-
-Reinicie o Sunshine após alterações:
+O Sunshine **exige** a chave `env` no `apps.json`. Sem ela, os apps não aparecem nos clientes Moonlight/Artemis.
 
 ```bash
 systemctl --user restart sunshine
 ```
 
-## Variáveis de ambiente (Sunshine)
+### Serviço do monitor virtual
 
-O Sunshine expõe a resolução do cliente ao iniciar a sessão:
+```bash
+systemctl --user status sunshine-vmon.service
+systemctl --user restart sunshine-vmon.service
+kscreen-doctor -o   # deve listar Virtual-sunshine-vmon (desabilitado fora do stream)
+```
 
-| Variável | Padrão |
-|----------|--------|
-| `SUNSHINE_CLIENT_WIDTH` | `1920` |
-| `SUNSHINE_CLIENT_HEIGHT` | `1080` |
-| `SUNSHINE_CLIENT_FPS` | `60` |
-| `SUNSHINE_PRIMARY_OUTPUT` | `DP-2` (apenas scripts `-offmon`) |
+## Variáveis de ambiente
+
+| Variável | Padrão | Uso |
+|----------|--------|-----|
+| `SUNSHINE_CLIENT_WIDTH` | `1920` | Resolução no início do stream |
+| `SUNSHINE_CLIENT_HEIGHT` | `1080` | Resolução no início do stream |
+| `SUNSHINE_CLIENT_FPS` | `60` | FPS no início do stream |
+| `SUNSHINE_PRIMARY_OUTPUT` | `DP-2` | Monitor físico (modo Exclusive) |
+| `SUNSHINE_VMON_WIDTH` | `1920` | Resolução base do serviço persistente |
+| `SUNSHINE_VMON_HEIGHT` | `1080` | Resolução base do serviço persistente |
+| `SUNSHINE_VMON_FPS` | `60` | FPS base do serviço persistente |
 
 ## Licença
 

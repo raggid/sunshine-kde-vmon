@@ -1,31 +1,18 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
-WIDTH="${SUNSHINE_CLIENT_WIDTH:-1920}"
-HEIGHT="${SUNSHINE_CLIENT_HEIGHT:-1080}"
-FPS="${SUNSHINE_CLIENT_FPS%.*}"
-FPS="${FPS:-60}"
-FPS_MHZ=$(( FPS * 1000 ))
-RES="${WIDTH}x${HEIGHT}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=sunshine-vmon-common.sh
+source "${SCRIPT_DIR}/sunshine-vmon-common.sh"
 
-NAME="sunshine-vmon"
+ensure_virtual_monitor
+apply_custom_mode
+resolve_client_resolution
 
-# Create virtual display at client resolution
-krfb-virtualmonitor --resolution "$RES" --name "$NAME" --password "sunshinepass" --port 5905 &
-echo $! > /tmp/sunshine-vmon.pid
-
-# Wait for KDE to register the new display
-sleep 3
-
-# Add custom mode support for the correct frame rate
-kscreen-doctor output.Virtual-${NAME}.addCustomMode.${WIDTH}.${HEIGHT}.${FPS_MHZ}.full
-
-# Enable virtual display as primary (physical monitor stays on)
+# Liga o virtual como primario; monitor fisico permanece ligado
 kscreen-doctor \
-  output.Virtual-${NAME}.enable \
-  output.Virtual-${NAME}.mode.${RES}@${FPS} \
-  output.Virtual-${NAME}.priority.1
+  "output.${VMON_OUTPUT}.enable" \
+  "output.${VMON_OUTPUT}.mode.${RES}@${FPS}" \
+  "output.${VMON_OUTPUT}.priority.1"
 
-# Tell Sunshine to capture this display
-CONF="${HOME}/.config/sunshine/sunshine.conf"
-sed -i '/^output_name/d' "$CONF"
-echo "output_name = Virtual-${NAME}" >> "$CONF"
+set_sunshine_output "${VMON_OUTPUT}"

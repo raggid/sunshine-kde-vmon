@@ -1,19 +1,14 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
-PRIMARY="${SUNSHINE_PRIMARY_OUTPUT:-DP-2}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=sunshine-vmon-common.sh
+source "${SCRIPT_DIR}/sunshine-vmon-common.sh"
 
-# Re-enable physical monitor before tearing down the virtual one
+# Religa o fisico primeiro, depois desliga o virtual
 kscreen-doctor \
-  output.${PRIMARY}.enable \
-  output.${PRIMARY}.priority.1
+  "output.${PRIMARY_OUTPUT}.enable" \
+  "output.${PRIMARY_OUTPUT}.priority.1" \
+  "output.${VMON_OUTPUT}.disable"
 
-# Kill virtual display
-if [ -f /tmp/sunshine-vmon.pid ]; then
-  kill "$(cat /tmp/sunshine-vmon.pid)" 2>/dev/null || true
-  rm -f /tmp/sunshine-vmon.pid
-fi
-
-# Restore Sunshine output to physical display
-CONF="${HOME}/.config/sunshine/sunshine.conf"
-sed -i '/^output_name/d' "$CONF"
-echo "output_name = ${PRIMARY}" >> "$CONF"
+set_sunshine_output "${PRIMARY_OUTPUT}"

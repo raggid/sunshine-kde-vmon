@@ -1,0 +1,13 @@
+[Unit]
+Description=Sunshine virtual monitor (persistent, disabled when idle)
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/projects/sunshine-kde-vmon/sunshine-vmon-service.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
