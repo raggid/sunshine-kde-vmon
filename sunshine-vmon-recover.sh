@@ -11,6 +11,7 @@ export DISPLAY="${DISPLAY:-:0}"
 export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 
+init_primary_output
 echo "sunshine-vmon-recover: religando ${PRIMARY_OUTPUT}..."
 
 if wait_for_plasma_outputs 30; then

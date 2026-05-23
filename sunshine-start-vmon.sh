@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=sunshine-vmon-common.sh
 source "${SCRIPT_DIR}/sunshine-vmon-common.sh"
 
+init_primary_output
 ensure_virtual_monitor
 apply_custom_mode
 resolve_client_resolution

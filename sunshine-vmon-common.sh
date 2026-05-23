@@ -2,7 +2,7 @@
 
 VMON_NAME="${SUNSHINE_VMON_NAME:-sunshine-vmon}"
 VMON_OUTPUT="Virtual-${VMON_NAME}"
-PRIMARY_OUTPUT="${SUNSHINE_PRIMARY_OUTPUT:-DP-2}"
+PRIMARY_OUTPUT=""
 SUNSHINE_CONF="${HOME}/.config/sunshine/sunshine.conf"
 VMON_PORT="${SUNSHINE_VMON_PORT:-5905}"
 VMON_PASSWORD="${SUNSHINE_VMON_PASSWORD:-sunshinepass}"
@@ -24,7 +24,54 @@ kscreen_outputs_ready() {
   kscreen-doctor -o >/dev/null 2>&1
 }
 
+# Detecta o monitor fisico principal via kscreen (ignora Virtual-*)
+detect_primary_output_name() {
+  kscreen-doctor -j 2>/dev/null | python3 -c '
+import json, sys
+
+try:
+    data = json.load(sys.stdin)
+except (json.JSONDecodeError, ValueError):
+    sys.exit(1)
+
+physical = [
+    o for o in data.get("outputs", [])
+    if o.get("connected") and not str(o.get("name", "")).startswith("Virtual-")
+]
+if not physical:
+    sys.exit(1)
+
+for o in physical:
+    if o.get("enabled") and o.get("priority") == 1:
+        print(o["name"])
+        sys.exit(0)
+
+for o in physical:
+    if o.get("enabled"):
+        print(o["name"])
+        sys.exit(0)
+
+print(physical[0]["name"])
+'
+}
+
+init_primary_output() {
+  if [[ -n "${SUNSHINE_PRIMARY_OUTPUT:-}" ]]; then
+    PRIMARY_OUTPUT="${SUNSHINE_PRIMARY_OUTPUT}"
+  elif detected="$(detect_primary_output_name)"; then
+    PRIMARY_OUTPUT="${detected}"
+  else
+    PRIMARY_OUTPUT="DP-1"
+  fi
+  export PRIMARY_OUTPUT
+}
+
+any_physical_output_present() {
+  detect_primary_output_name >/dev/null 2>&1
+}
+
 primary_output_present() {
+  [[ -n "${PRIMARY_OUTPUT}" ]] || init_primary_output
   kscreen-doctor -o 2>/dev/null | grep -qF "${PRIMARY_OUTPUT}"
 }
 
@@ -37,14 +84,18 @@ wait_for_plasma_outputs() {
   local elapsed=0
 
   while (( elapsed < timeout )); do
-    if kscreen_outputs_ready && primary_output_present; then
-      return 0
+    if kscreen_outputs_ready && any_physical_output_present; then
+      init_primary_output
+      if primary_output_present; then
+        return 0
+      fi
     fi
     sleep 1
     ((elapsed++))
   done
 
-  echo "sunshine-vmon: KDE/Plasma ou ${PRIMARY_OUTPUT} nao disponivel apos ${timeout}s." >&2
+  init_primary_output
+  echo "sunshine-vmon: KDE/Plasma ou monitor fisico nao disponivel apos ${timeout}s (esperado: ${PRIMARY_OUTPUT})." >&2
   return 1
 }
 
@@ -65,6 +116,7 @@ wait_for_virtual_output() {
 
 # Sempre religa o monitor fisico (corrige layout salvo pelo modo Exclusive apos crash/reboot)
 ensure_primary_monitor() {
+  init_primary_output
   if ! primary_output_present; then
     echo "sunshine-vmon: saida ${PRIMARY_OUTPUT} nao encontrada." >&2
     return 1

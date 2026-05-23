@@ -55,7 +55,11 @@ Aponte os `prep-cmd` do Sunshine para o diretório do clone (caminhos absolutos)
 kscreen-doctor -o
 ```
 
-Variável `SUNSHINE_PRIMARY_OUTPUT` (padrão: `DP-2`) nos scripts `-offmon`.
+O monitor físico é **detectado automaticamente** via `kscreen-doctor` (no seu sistema: `DP-1`). Para forçar outro conector:
+
+```bash
+export SUNSHINE_PRIMARY_OUTPUT=DP-1
+```
 
 ### Resolução padrão do monitor persistente
 
@@ -114,7 +118,7 @@ Se após reboot a tela ficar preta (layout do KDE com monitor físico desligado 
 | `SUNSHINE_CLIENT_WIDTH` | `1920` | Resolução no início do stream |
 | `SUNSHINE_CLIENT_HEIGHT` | `1080` | Resolução no início do stream |
 | `SUNSHINE_CLIENT_FPS` | `60` | FPS no início do stream |
-| `SUNSHINE_PRIMARY_OUTPUT` | `DP-2` | Monitor físico (modo Exclusive) |
+| `SUNSHINE_PRIMARY_OUTPUT` | _(auto)_ | Monitor físico; detectado se omitido (fallback `DP-1`) |
 | `SUNSHINE_VMON_WIDTH` | `1920` | Resolução base do serviço persistente |
 | `SUNSHINE_VMON_HEIGHT` | `1080` | Resolução base do serviço persistente |
 | `SUNSHINE_VMON_FPS` | `60` | FPS base do serviço persistente |
