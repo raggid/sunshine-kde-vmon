@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Perfil Desktop: notebook como segunda tela — fisico DP-1 permanece ligado.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

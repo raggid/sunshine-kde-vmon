@@ -18,15 +18,29 @@ Stream stop  → kscreen-doctor disable virtual, enable físico
         krfb continua rodando em segundo plano
 ```
 
+## Dois perfis no Moonlight
+
+| App Sunshine | Quando usar | Monitor físico (host) | Monitor virtual | Moonlight vê |
+|--------------|-------------|------------------------|-----------------|--------------|
+| **Desktop** | Notebook como **segunda tela** do PC (trabalho, desktop estendido) | **Ligado** — você continua vendo e usando o ultrawide | Ligado, resolução do cliente | Só o virtual |
+| **Desktop Exclusive** | Celular Android, **jogos / foco total** — nada deve aparecer no host | **Desligado** no KDE — tela física apagada | Ligado, único output ativo | Só o virtual |
+
+São perfis **diferentes de propósito**, não redundantes:
+
+- **Desktop** = dois monitores no KDE (físico + virtual), como um setup multi-monitor normal.
+- **Exclusive** = um monitor só no host (o virtual); o físico fica off para privacidade e para não “vazar” imagem na sua mesa.
+
+O Sunshine sempre captura `Virtual-sunshine-vmon` nos dois casos; a diferença é o que acontece **localmente** no quarto/escritório.
+
 ## Scripts
 
 | Script | Descrição |
 |--------|-----------|
 | `sunshine-vmon-service.sh` | Serviço: cria o monitor virtual e deixa desabilitado |
-| `sunshine-start-vmon.sh` | Liga o virtual (físico permanece ligado) |
-| `sunshine-stop-vmon.sh` | Desliga o virtual, restaura o físico |
-| `sunshine-start-vmon-offmon.sh` | Liga o virtual e desliga o físico (troca atomica) |
-| `sunshine-stop-vmon-offmon.sh` | Religa o físico e desliga o virtual |
+| `sunshine-start-vmon.sh` | Perfil **Desktop**: virtual on, físico **permanece on** |
+| `sunshine-stop-vmon.sh` | Desliga o virtual, físico continua on |
+| `sunshine-start-vmon-offmon.sh` | Perfil **Exclusive**: virtual on, restart Sunshine, físico **off** |
+| `sunshine-stop-vmon-offmon.sh` | Religa o físico, desliga o virtual |
 
 ## Requisitos
 

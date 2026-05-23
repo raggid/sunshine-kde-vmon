@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Perfil Exclusive (Android/jogos): tudo no client; fisico desligado no KDE apos virtual pronto.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
