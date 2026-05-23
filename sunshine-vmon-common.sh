@@ -7,6 +7,26 @@ SUNSHINE_CONF="${HOME}/.config/sunshine/sunshine.conf"
 VMON_PORT="${SUNSHINE_VMON_PORT:-5905}"
 VMON_PASSWORD="${SUNSHINE_VMON_PASSWORD:-sunshinepass}"
 
+import_plasma_session_env() {
+  local uid
+  uid="$(id -u)"
+  export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/${uid}}"
+
+  if [[ -z "${DBUS_SESSION_BUS_ADDRESS:-}" && -S "${XDG_RUNTIME_DIR}/bus" ]]; then
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
+  fi
+
+  if [[ -z "${WAYLAND_DISPLAY:-}" ]]; then
+    local wl_socket
+    wl_socket="$(find "${XDG_RUNTIME_DIR}" -maxdepth 1 -name 'wayland-*' -type s 2>/dev/null | head -1)"
+    if [[ -n "${wl_socket}" ]]; then
+      export WAYLAND_DISPLAY="${wl_socket##*/}"
+    else
+      export WAYLAND_DISPLAY="wayland-0"
+    fi
+  fi
+}
+
 resolve_client_resolution() {
   SUNSHINE_CLIENT_WIDTH="${SUNSHINE_CLIENT_WIDTH:-1920}"
   SUNSHINE_CLIENT_HEIGHT="${SUNSHINE_CLIENT_HEIGHT:-1080}"
@@ -24,7 +44,6 @@ kscreen_outputs_ready() {
   kscreen-doctor -o >/dev/null 2>&1
 }
 
-# Detecta o monitor fisico principal via kscreen (ignora Virtual-*)
 detect_primary_output_name() {
   kscreen-doctor -j 2>/dev/null | python3 -c '
 import json, sys
@@ -79,9 +98,24 @@ virtual_output_present() {
   kscreen-doctor -o 2>/dev/null | grep -qF "${VMON_OUTPUT}"
 }
 
+virtual_output_enabled() {
+  kscreen-doctor -j 2>/dev/null | python3 -c "
+import json, sys
+name = \"${VMON_OUTPUT}\"
+data = json.load(sys.stdin)
+for o in data.get('outputs', []):
+    if o.get('name') == name:
+        print('yes' if o.get('enabled') else 'no')
+        sys.exit(0)
+print('no')
+" | grep -q '^yes$'
+}
+
 wait_for_plasma_outputs() {
   local timeout="${1:-90}"
   local elapsed=0
+
+  import_plasma_session_env
 
   while (( elapsed < timeout )); do
     if kscreen_outputs_ready && any_physical_output_present; then
@@ -114,7 +148,45 @@ wait_for_virtual_output() {
   return 1
 }
 
-# Sempre religa o monitor fisico (corrige layout salvo pelo modo Exclusive apos crash/reboot)
+# Liga todos os monitores fisicos conectados (fallback agressivo no recover)
+force_enable_all_physical() {
+  import_plasma_session_env
+  kscreen-doctor -j 2>/dev/null | python3 -c '
+import json, subprocess, sys
+
+data = json.load(sys.stdin)
+cmds = []
+primary = None
+
+for o in data.get("outputs", []):
+    name = o.get("name", "")
+    if not o.get("connected") or name.startswith("Virtual-"):
+        continue
+    if o.get("enabled") and o.get("priority") == 1:
+        primary = name
+    cmds.append(name)
+
+if not cmds:
+    sys.exit(1)
+
+if not primary:
+    primary = cmds[0]
+
+for name in cmds:
+    if name != primary:
+        subprocess.run(
+            ["kscreen-doctor", f"output.{name}.enable"],
+            check=False,
+        )
+
+subprocess.run(
+    ["kscreen-doctor", f"output.{primary}.enable", f"output.{primary}.priority.1"],
+    check=False,
+)
+' || return 1
+  init_primary_output
+}
+
 ensure_primary_monitor() {
   init_primary_output
   if ! primary_output_present; then
@@ -135,15 +207,21 @@ disable_virtual_monitor() {
   kscreen-doctor "output.${VMON_OUTPUT}.disable"
 }
 
-# Layout seguro fora do stream: fisico ligado, virtual desligado
 apply_idle_layout() {
-  ensure_primary_monitor || return 1
+  import_plasma_session_env
 
-  if virtual_output_present; then
-    disable_virtual_monitor
+  if ! kscreen_outputs_ready; then
+    echo "sunshine-vmon: kscreen-doctor indisponivel (sessao Plasma?)" >&2
+    return 1
   fi
 
-  ensure_primary_monitor
+  force_enable_all_physical || ensure_primary_monitor || true
+
+  if virtual_output_present; then
+    disable_virtual_monitor || true
+  fi
+
+  ensure_primary_monitor || force_enable_all_physical
 }
 
 start_krfb_virtualmonitor() {
@@ -169,7 +247,6 @@ ensure_virtual_monitor() {
 
   if ! wait_for_virtual_output 30; then
     echo "sunshine-vmon: monitor virtual '${VMON_OUTPUT}' nao apareceu a tempo." >&2
-    echo "sunshine-vmon: verifique sunshine-vmon.service ou execute ./install.sh" >&2
     return 1
   fi
 }
@@ -185,9 +262,17 @@ set_sunshine_output() {
   echo "output_name = ${output}" >> "${SUNSHINE_CONF}"
 }
 
-# output_name no sunshine.conf e lido no startup; reinicia o servico apos mudar o display
 reload_sunshine_if_running() {
   if systemctl --user is-active sunshine.service >/dev/null 2>&1; then
     systemctl --user restart sunshine.service
   fi
+}
+
+# Restaura layout + sunshine.conf apos falha no prep-cmd (undo nao chegou a rodar)
+abort_stream_layout() {
+  echo "sunshine-vmon: restaurando layout apos falha..." >&2
+  apply_idle_layout || force_enable_all_physical || true
+  init_primary_output
+  set_sunshine_output "${PRIMARY_OUTPUT}"
+  reload_sunshine_if_running
 }

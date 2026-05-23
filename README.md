@@ -93,23 +93,29 @@ O serviço **não é habilitado automaticamente** no boot por padrão (`install.
 
 ### Recuperação de tela preta
 
-Se após reboot a tela ficar preta (layout do KDE com monitor físico desligado + virtual desligado):
+**TTY** (Ctrl+Alt+F3): faça login com o **mesmo usuário** da sessão (não use `root` direto):
 
-1. **TTY** (Ctrl+Alt+F3), login, execute:
-   ```bash
-   /home/raggid/projects/sunshine-kde-vmon/sunshine-vmon-recover.sh
-   ```
-2. Ou desative o serviço:
-   ```bash
-   systemctl --user disable --now sunshine-vmon.service
-   rm ~/.config/systemd/user/sunshine-vmon.service
-   systemctl --user daemon-reload
-   ```
-3. Só use Live CD se não tiver acesso a TTY/SSH.
+```bash
+/home/raggid/projects/sunshine-kde-vmon/sunshine-vmon-recover.sh
+```
 
-**Causa:** o modo Desktop Exclusive desliga o monitor físico e o KDE pode salvar esse layout. No boot, o serviço antigo desligava só o virtual — ficando **nenhum monitor ligado**. Versões novas religam o físico **antes** de qualquer outra ação.
+Se estiver como root:
 
-**Importante:** sempre encerre o stream (para o script `stop` rodar) antes de reiniciar o PC.
+```bash
+sudo -u raggid \
+  XDG_RUNTIME_DIR=/run/user/1000 \
+  WAYLAND_DISPLAY=wayland-0 \
+  DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus \
+  /home/raggid/projects/sunshine-kde-vmon/sunshine-vmon-recover.sh
+```
+
+O recover antigo falhava no TTY sem `DBUS_SESSION_BUS_ADDRESS` e sem religar todos os outputs físicos.
+
+**Causas comuns de tela preta:**
+- Desktop Exclusive desliga o físico; o stream falha e o `undo` do Sunshine não roda.
+- `reload_sunshine` no meio do prep-cmd (versões antigas) derrubava o `krfb` no pior momento.
+
+**Importante:** encerre o stream no Moonlight antes de reiniciar o PC (`exit-timeout` = 30s nos apps).
 
 ## Variáveis de ambiente
 

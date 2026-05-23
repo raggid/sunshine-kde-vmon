@@ -13,7 +13,10 @@ SUNSHINE_CLIENT_FPS="${SUNSHINE_VMON_FPS:-60}"
 KRFB_PID=""
 
 stop_service() {
-  apply_idle_layout || true
+  import_plasma_session_env
+  if kscreen_outputs_ready; then
+    apply_idle_layout || force_enable_all_physical || true
+  fi
   if [[ -n "${KRFB_PID}" ]]; then
     kill "${KRFB_PID}" 2>/dev/null || true
   fi

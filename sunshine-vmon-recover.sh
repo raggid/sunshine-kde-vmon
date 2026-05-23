@@ -1,30 +1,41 @@
 #!/usr/bin/env bash
-# Recuperacao de tela preta: religa o monitor fisico e desliga o virtual.
-# Execute em TTY (Ctrl+Alt+F3) ou SSH se a sessao grafica estiver preta.
+# Recuperacao de tela preta. Rode como o MESMO usuario da sessao grafica.
+# TTY: login normal (nao root). SSH tambem funciona.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=sunshine-vmon-common.sh
 source "${SCRIPT_DIR}/sunshine-vmon-common.sh"
 
-export DISPLAY="${DISPLAY:-:0}"
-export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
-export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+import_plasma_session_env
+
+echo "sunshine-vmon-recover: XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR}"
+echo "sunshine-vmon-recover: WAYLAND_DISPLAY=${WAYLAND_DISPLAY}"
+echo "sunshine-vmon-recover: DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS:-nao definido}"
 
 init_primary_output
-echo "sunshine-vmon-recover: religando ${PRIMARY_OUTPUT}..."
+echo "sunshine-vmon-recover: monitor fisico alvo: ${PRIMARY_OUTPUT}"
 
-if wait_for_plasma_outputs 30; then
-  apply_idle_layout && echo "sunshine-vmon-recover: layout restaurado." && exit 0
+if ! kscreen_outputs_ready; then
+  echo "sunshine-vmon-recover: ERRO - kscreen-doctor nao alcanca o Plasma." >&2
+  echo "  - Faca login na sessao grafica (nao use su root)" >&2
+  echo "  - Ou: sudo -u ${USER} DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus \\" >&2
+  echo "         WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/$(id -u) $0" >&2
+  exit 1
 fi
 
-echo "sunshine-vmon-recover: kscreen indisponivel; tentando mesmo assim..." >&2
-kscreen-doctor \
-  "output.${PRIMARY_OUTPUT}.enable" \
-  "output.${PRIMARY_OUTPUT}.priority.1" 2>/dev/null || true
+echo "sunshine-vmon-recover: religando monitores fisicos..."
+force_enable_all_physical || ensure_primary_monitor || true
+disable_virtual_monitor || true
+ensure_primary_monitor || force_enable_all_physical || true
 
-if virtual_output_present; then
-  kscreen-doctor "output.${VMON_OUTPUT}.disable" 2>/dev/null || true
-fi
+init_primary_output
+set_sunshine_output "${PRIMARY_OUTPUT}"
+reload_sunshine_if_running
 
-echo "sunshine-vmon-recover: concluido. Se a tela continuar preta, reinicie o Plasma ou o PC."
+echo ""
+echo "Estado atual:"
+kscreen-doctor -o 2>/dev/null | grep -E 'Output:|enabled|disabled' || true
+
+echo ""
+echo "sunshine-vmon-recover: concluido."
