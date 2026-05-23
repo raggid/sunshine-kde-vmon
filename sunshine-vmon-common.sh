@@ -184,3 +184,10 @@ set_sunshine_output() {
   sed -i '/^output_name/d' "${SUNSHINE_CONF}"
   echo "output_name = ${output}" >> "${SUNSHINE_CONF}"
 }
+
+# output_name no sunshine.conf e lido no startup; reinicia o servico apos mudar o display
+reload_sunshine_if_running() {
+  if systemctl --user is-active sunshine.service >/dev/null 2>&1; then
+    systemctl --user restart sunshine.service
+  fi
+}

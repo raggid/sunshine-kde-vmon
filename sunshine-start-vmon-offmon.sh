@@ -18,3 +18,4 @@ kscreen-doctor \
   "output.${PRIMARY_OUTPUT}.disable"
 
 set_sunshine_output "${VMON_OUTPUT}"
+reload_sunshine_if_running

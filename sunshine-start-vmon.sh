@@ -17,3 +17,4 @@ kscreen-doctor \
   "output.${VMON_OUTPUT}.priority.1"
 
 set_sunshine_output "${VMON_OUTPUT}"
+reload_sunshine_if_running
