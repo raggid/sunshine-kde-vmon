@@ -85,6 +85,28 @@ systemctl --user restart sunshine-vmon.service
 kscreen-doctor -o   # deve listar Virtual-sunshine-vmon (desabilitado fora do stream)
 ```
 
+O serviço **não é habilitado automaticamente** no boot por padrão (`install.sh` pergunta antes). Teste com `systemctl --user start` antes de `enable`.
+
+### Recuperação de tela preta
+
+Se após reboot a tela ficar preta (layout do KDE com monitor físico desligado + virtual desligado):
+
+1. **TTY** (Ctrl+Alt+F3), login, execute:
+   ```bash
+   /home/raggid/projects/sunshine-kde-vmon/sunshine-vmon-recover.sh
+   ```
+2. Ou desative o serviço:
+   ```bash
+   systemctl --user disable --now sunshine-vmon.service
+   rm ~/.config/systemd/user/sunshine-vmon.service
+   systemctl --user daemon-reload
+   ```
+3. Só use Live CD se não tiver acesso a TTY/SSH.
+
+**Causa:** o modo Desktop Exclusive desliga o monitor físico e o KDE pode salvar esse layout. No boot, o serviço antigo desligava só o virtual — ficando **nenhum monitor ligado**. Versões novas religam o físico **antes** de qualquer outra ação.
+
+**Importante:** sempre encerre o stream (para o script `stop` rodar) antes de reiniciar o PC.
+
 ## Variáveis de ambiente
 
 | Variável | Padrão | Uso |

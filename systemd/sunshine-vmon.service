@@ -1,13 +1,17 @@
 [Unit]
 Description=Sunshine virtual monitor (persistent, disabled when idle)
-After=graphical-session.target
-PartOf=graphical-session.target
+After=graphical-session.target plasma-workspace.target
+Wants=graphical-session.target
 
 [Service]
 Type=simple
+Environment=WAYLAND_DISPLAY=wayland-0
+Environment=XDG_RUNTIME_DIR=/run/user/%U
+ExecStartPre=/bin/sleep 12
 ExecStart=%h/projects/sunshine-kde-vmon/sunshine-vmon-service.sh
 Restart=on-failure
-RestartSec=5
+RestartSec=10
+TimeoutStartSec=120
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=default.target

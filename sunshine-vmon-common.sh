@@ -20,12 +20,36 @@ resolve_client_resolution() {
   RES="${WIDTH}x${HEIGHT}"
 }
 
+kscreen_outputs_ready() {
+  kscreen-doctor -o >/dev/null 2>&1
+}
+
+primary_output_present() {
+  kscreen-doctor -o 2>/dev/null | grep -qF "${PRIMARY_OUTPUT}"
+}
+
 virtual_output_present() {
   kscreen-doctor -o 2>/dev/null | grep -qF "${VMON_OUTPUT}"
 }
 
+wait_for_plasma_outputs() {
+  local timeout="${1:-90}"
+  local elapsed=0
+
+  while (( elapsed < timeout )); do
+    if kscreen_outputs_ready && primary_output_present; then
+      return 0
+    fi
+    sleep 1
+    ((elapsed++))
+  done
+
+  echo "sunshine-vmon: KDE/Plasma ou ${PRIMARY_OUTPUT} nao disponivel apos ${timeout}s." >&2
+  return 1
+}
+
 wait_for_virtual_output() {
-  local timeout="${1:-15}"
+  local timeout="${1:-30}"
   local elapsed=0
 
   while (( elapsed < timeout )); do
@@ -37,6 +61,37 @@ wait_for_virtual_output() {
   done
 
   return 1
+}
+
+# Sempre religa o monitor fisico (corrige layout salvo pelo modo Exclusive apos crash/reboot)
+ensure_primary_monitor() {
+  if ! primary_output_present; then
+    echo "sunshine-vmon: saida ${PRIMARY_OUTPUT} nao encontrada." >&2
+    return 1
+  fi
+
+  kscreen-doctor \
+    "output.${PRIMARY_OUTPUT}.enable" \
+    "output.${PRIMARY_OUTPUT}.priority.1"
+}
+
+disable_virtual_monitor() {
+  if ! virtual_output_present; then
+    return 0
+  fi
+
+  kscreen-doctor "output.${VMON_OUTPUT}.disable"
+}
+
+# Layout seguro fora do stream: fisico ligado, virtual desligado
+apply_idle_layout() {
+  ensure_primary_monitor || return 1
+
+  if virtual_output_present; then
+    disable_virtual_monitor
+  fi
+
+  ensure_primary_monitor
 }
 
 start_krfb_virtualmonitor() {
@@ -60,9 +115,9 @@ ensure_virtual_monitor() {
 
   start_krfb_virtualmonitor
 
-  if ! wait_for_virtual_output 15; then
+  if ! wait_for_virtual_output 30; then
     echo "sunshine-vmon: monitor virtual '${VMON_OUTPUT}' nao apareceu a tempo." >&2
-    echo "sunshine-vmon: ative o servico: systemctl --user enable --now sunshine-vmon.service" >&2
+    echo "sunshine-vmon: verifique sunshine-vmon.service ou execute ./install.sh" >&2
     return 1
   fi
 }
