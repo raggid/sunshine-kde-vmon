@@ -1,0 +1,16 @@
+[Unit]
+Description=Sunshine Game Stream Server
+After=graphical-session.target plasma-workspace.target
+Wants=graphical-session.target
+
+[Service]
+Type=simple
+Environment=WAYLAND_DISPLAY=wayland-0
+Environment=XDG_RUNTIME_DIR=/run/user/%U
+ExecStartPre=/bin/sleep 5
+ExecStart=/usr/bin/sunshine
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

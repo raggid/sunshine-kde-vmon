@@ -42,6 +42,14 @@ O Sunshine sempre captura `Virtual-sunshine-vmon` nos dois casos; a diferença �
 | `sunshine-start-vmon-offmon.sh` | Perfil **Exclusive**: virtual on, restart Sunshine, físico **off** |
 | `sunshine-stop-vmon-offmon.sh` | Religa o físico, desliga o virtual |
 
+## Plasma Wayland e mensagem “X server” no boot
+
+No KDE Wayland **não há Xorg separado no login** — só Wayland + Xwayland. No journal pode aparecer:
+
+`Errors from xkbcomp are not fatal to the X server`
+
+Isso é **normal** e não indica falha do display. SDDM deve usar `startplasma-wayland`, não uma sessão X11 pura.
+
 ## Requisitos
 
 - KDE Plasma 6 (Wayland)
