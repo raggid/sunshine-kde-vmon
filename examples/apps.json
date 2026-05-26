@@ -26,7 +26,7 @@
             "prep-cmd": [
                 {
                     "do": "/home/USER/projects/sunshine-kde-vmon/sunshine-start-vmon-offmon.sh",
-                    "undo": "/home/USER/projects/sunshine-kde-vmon/sunshine-stop-vmon-offmon.sh"
+                    "undo": "/home/USER/projects/sunshine-kde-vmon/sunshine-stop-vmon.sh"
                 }
             ],
             "uuid": "A3F8C1D2-4B5E-6F70-8A91-2C3D4E5F6071",
@@ -44,7 +44,7 @@
             "prep-cmd": [
                 {
                     "do": "/home/USER/projects/sunshine-kde-vmon/sunshine-start-vmon-offmon.sh",
-                    "undo": "/home/USER/projects/sunshine-kde-vmon/sunshine-stop-vmon-offmon.sh"
+                    "undo": "/home/USER/projects/sunshine-kde-vmon/sunshine-stop-vmon.sh"
                 },
                 {
                     "do": "",

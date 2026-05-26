@@ -12,7 +12,6 @@ trap '[[ $? -ne 0 ]] && abort_stream_layout' EXIT
 init_primary_output
 ensure_virtual_monitor || exit 1
 apply_custom_mode
-resolve_client_resolution
 
 # 1) Virtual ligado com fisico ainda ativo
 kscreen-doctor \
@@ -27,12 +26,11 @@ if ! virtual_output_enabled; then
   exit 1
 fi
 
-# 2) Sunshine aponta para o virtual enquanto ambos existem
+# 2) Sunshine relera output_name ao iniciar o stream (apos prep-cmd terminar);
+#    reiniciar aqui causaria um loop: sunshine morre → Moonlight reconecta → prep-cmd roda de novo.
 set_sunshine_output "${VMON_OUTPUT}"
-reload_sunshine_if_running
-sleep 4
 
-# 3) So entao desliga o monitor fisico
+# 3) Desliga o monitor fisico; sunshine ainda nao iniciou o screencast (esta no prep-cmd)
 kscreen-doctor "output.${PRIMARY_OUTPUT}.disable"
 
 if ! virtual_output_enabled; then

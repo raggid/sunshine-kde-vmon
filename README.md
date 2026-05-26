@@ -38,9 +38,8 @@ O Sunshine sempre captura `Virtual-sunshine-vmon` nos dois casos; a diferença �
 |--------|-----------|
 | `sunshine-vmon-service.sh` | Serviço: cria o monitor virtual e deixa desabilitado |
 | `sunshine-start-vmon.sh` | Perfil **Desktop**: virtual on, físico **permanece on** |
-| `sunshine-stop-vmon.sh` | Desliga o virtual, físico continua on |
-| `sunshine-start-vmon-offmon.sh` | Perfil **Exclusive**: virtual on, restart Sunshine, físico **off** |
-| `sunshine-stop-vmon-offmon.sh` | Religa o físico, desliga o virtual |
+| `sunshine-start-vmon-offmon.sh` | Perfil **Exclusive**: virtual on, físico **off** |
+| `sunshine-stop-vmon.sh` | Undo de ambos os perfis: religa o físico se necessário, desliga o virtual |
 
 ## Plasma Wayland e mensagem “X server” no boot
 

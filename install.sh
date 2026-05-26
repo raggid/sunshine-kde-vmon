@@ -12,8 +12,7 @@ chmod +x \
   "${ROOT}/sunshine-vmon-recover.sh" \
   "${ROOT}/sunshine-start-vmon.sh" \
   "${ROOT}/sunshine-stop-vmon.sh" \
-  "${ROOT}/sunshine-start-vmon-offmon.sh" \
-  "${ROOT}/sunshine-stop-vmon-offmon.sh"
+  "${ROOT}/sunshine-start-vmon-offmon.sh"
 
 mkdir -p "${SYSTEMD_USER}"
 cat > "${UNIT}" <<EOF

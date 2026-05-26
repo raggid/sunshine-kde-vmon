@@ -12,12 +12,16 @@ trap '[[ $? -ne 0 ]] && abort_stream_layout' EXIT
 init_primary_output
 ensure_virtual_monitor || exit 1
 apply_custom_mode
-resolve_client_resolution
 
 kscreen-doctor \
   "output.${VMON_OUTPUT}.enable" \
   "output.${VMON_OUTPUT}.mode.${RES}@${FPS}" \
   "output.${VMON_OUTPUT}.priority.1"
+
+if ! virtual_output_enabled; then
+  echo "sunshine-vmon: ${VMON_OUTPUT} nao ficou habilitado." >&2
+  exit 1
+fi
 
 set_sunshine_output "${VMON_OUTPUT}"
 trap - EXIT

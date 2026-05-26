@@ -262,17 +262,10 @@ set_sunshine_output() {
   echo "output_name = ${output}" >> "${SUNSHINE_CONF}"
 }
 
-reload_sunshine_if_running() {
-  if systemctl --user is-active sunshine.service >/dev/null 2>&1; then
-    systemctl --user restart sunshine.service
-  fi
-}
-
 # Restaura layout + sunshine.conf apos falha no prep-cmd (undo nao chegou a rodar)
 abort_stream_layout() {
   echo "sunshine-vmon: restaurando layout apos falha..." >&2
   apply_idle_layout || force_enable_all_physical || true
   init_primary_output
   set_sunshine_output "${PRIMARY_OUTPUT}"
-  reload_sunshine_if_running
 }

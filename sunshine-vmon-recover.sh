@@ -31,7 +31,10 @@ ensure_primary_monitor || force_enable_all_physical || true
 
 init_primary_output
 set_sunshine_output "${PRIMARY_OUTPUT}"
-reload_sunshine_if_running
+
+if systemctl --user is-active sunshine.service >/dev/null 2>&1; then
+  systemctl --user restart sunshine.service
+fi
 
 echo ""
 echo "Estado atual:"
