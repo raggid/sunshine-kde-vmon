@@ -25,6 +25,8 @@ import_plasma_session_env() {
       export WAYLAND_DISPLAY="wayland-0"
     fi
   fi
+
+  export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-wayland}"
 }
 
 resolve_client_resolution() {
