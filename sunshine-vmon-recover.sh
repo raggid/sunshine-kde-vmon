@@ -7,11 +7,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=sunshine-vmon-common.sh
 source "${SCRIPT_DIR}/sunshine-vmon-common.sh"
 
+export QT_QPA_PLATFORM=wayland
 import_plasma_session_env
 
 echo "sunshine-vmon-recover: XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR}"
 echo "sunshine-vmon-recover: WAYLAND_DISPLAY=${WAYLAND_DISPLAY}"
 echo "sunshine-vmon-recover: DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS:-nao definido}"
+echo "sunshine-vmon-recover: QT_QPA_PLATFORM=${QT_QPA_PLATFORM}"
 
 init_primary_output
 echo "sunshine-vmon-recover: monitor fisico alvo: ${PRIMARY_OUTPUT}"
