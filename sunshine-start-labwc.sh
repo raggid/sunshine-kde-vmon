@@ -51,4 +51,5 @@ if command -v plasmashell >/dev/null 2>&1 && ! pgrep -x plasmashell >/dev/null 2
   KDE_FULL_SESSION=true \
   PLASMA_USE_QT_SCALING=1 \
     dbus-run-session -- plasmashell 2>/dev/null &
+  echo "$!" > "$(_plasmashell_pid_file)"
 fi

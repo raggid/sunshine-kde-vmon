@@ -48,7 +48,7 @@
                 },
                 {
                     "do": "",
-                    "undo": "pkill -x gamescope; pkill -x steam"
+                    "undo": "setsid steam -shutdown 2>/dev/null; true"
                 }
             ],
             "uuid": "71856C4E-B04C-5A01-2E9D-0A3DE917B4DA",

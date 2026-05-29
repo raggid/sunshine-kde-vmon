@@ -30,7 +30,8 @@ cleanup() {
     wait "${LABWC_PID}" 2>/dev/null || true
   fi
   rm -f "$(_socket_link)" 2>/dev/null || true
-  rm -f "$(_pid_file)" "$(_socket_file)" "$(_display_file)" "$(_env_file)" 2>/dev/null || true
+  rm -f "$(_pid_file)" "$(_socket_file)" "$(_display_file)" "$(_env_file)" \
+        "$(_plasmashell_pid_file)" 2>/dev/null || true
 }
 trap cleanup SIGTERM SIGINT EXIT
 
@@ -187,6 +188,7 @@ if command -v plasmashell >/dev/null 2>&1; then
   PLASMA_USE_QT_SCALING=1 \
     dbus-run-session -- plasmashell 2>/dev/null &
   PLASMASHELL_PID=$!
+  echo "${PLASMASHELL_PID}" > "$(_plasmashell_pid_file)"
   echo "sunshine-labwc: plasmashell started (pid=${PLASMASHELL_PID})" >&2
 elif command -v swaybg >/dev/null 2>&1; then
   WAYLAND_DISPLAY="${LABWC_SOCKET_LINK_NAME}" \

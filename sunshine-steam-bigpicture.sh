@@ -27,9 +27,13 @@ fi
 
 export AT_SPI_BUS_ADDRESS=
 
-# plasmashell is not needed for Steam gamepadui; killing it frees RAM and
-# avoids any compositor z-order confusion with a fullscreen Steam window.
-pkill -x plasmashell 2>/dev/null || true
+# plasmashell is not needed for Steam gamepadui; kill only the labwc instance
+# (tracked by the service) so the physical KDE plasmashell is not affected.
+PS_PID_FILE="${XDG_RUNTIME_DIR}/sunshine-labwc/plasmashell.pid"
+if [[ -f "${PS_PID_FILE}" ]]; then
+    kill -TERM "$(cat "${PS_PID_FILE}")" 2>/dev/null || true
+    rm -f "${PS_PID_FILE}"
+fi
 
 # Steam uses a single-instance IPC pipe (~/.steam/steam.pipe). Any new
 # invocation sends its arguments to the already-running instance and exits,

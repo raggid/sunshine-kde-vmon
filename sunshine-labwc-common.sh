@@ -29,11 +29,12 @@ init_state_paths() {
   mkdir -p "${_LABWC_STATE_DIR}"
 }
 
-_pid_file()     { echo "${_LABWC_STATE_DIR}/labwc.pid"; }
-_socket_file()  { echo "${_LABWC_STATE_DIR}/labwc.socket"; }
-_display_file() { echo "${_LABWC_STATE_DIR}/labwc.display"; }
-_env_file()     { echo "${_LABWC_STATE_DIR}/labwc.env"; }
-_socket_link()  { echo "${XDG_RUNTIME_DIR}/${LABWC_SOCKET_LINK_NAME}"; }
+_pid_file()          { echo "${_LABWC_STATE_DIR}/labwc.pid"; }
+_socket_file()       { echo "${_LABWC_STATE_DIR}/labwc.socket"; }
+_display_file()      { echo "${_LABWC_STATE_DIR}/labwc.display"; }
+_env_file()          { echo "${_LABWC_STATE_DIR}/labwc.env"; }
+_plasmashell_pid_file() { echo "${_LABWC_STATE_DIR}/plasmashell.pid"; }
+_socket_link()       { echo "${XDG_RUNTIME_DIR}/${LABWC_SOCKET_LINK_NAME}"; }
 
 labwc_is_running() {
   local pid_file
@@ -107,8 +108,10 @@ wait_for_new_x11_display() {
 # Set the labwc output to a given resolution. Uses the stable socket link.
 set_labwc_mode() {
   local width="$1" height="$2" fps="$3"
+  # timeout guards against wlr-randr hanging when labwc is in a bad state
+  # (e.g. after a client process crashed and left broken Wayland state).
   WAYLAND_DISPLAY="${LABWC_SOCKET_LINK_NAME}" \
-    wlr-randr --output "${LABWC_OUTPUT}" \
+    timeout 5 wlr-randr --output "${LABWC_OUTPUT}" \
               --custom-mode "${width}x${height}@${fps}Hz"
 }
 
