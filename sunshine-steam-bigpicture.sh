@@ -39,15 +39,21 @@ fi
 # invocation delegates to the running instance and exits immediately, even
 # with a different WAYLAND_DISPLAY. pkill -x steam kills only the main
 # process; helpers (steamwebhelper, pressure-vessel, etc.) keep the pipe
-# alive. Kill everything steam-related and wait for the pipe to vanish.
+# alive. We must kill all of them before starting a fresh instance.
+#
+# IMPORTANT: do NOT use "pkill -f steam" — this script's own path contains
+# the word "steam" and would self-terminate. Match by Steam's install paths.
 echo "[steam-bp] stopping all Steam processes" >&2
-pkill -f steam 2>/dev/null || true
+pkill -x steam 2>/dev/null || true
+pkill -f '/Steam/' 2>/dev/null || true   # Steam install dir (capital S)
+pkill -f 'steamwebhelper' 2>/dev/null || true
+# Wait for the IPC pipe to disappear (up to 10 s)
 for _i in $(seq 1 40); do
     [[ -e "${HOME}/.steam/steam.pipe" ]] || break
     sleep 0.25
 done
-# Final hard kill if anything survived
-pkill -KILL -f steam 2>/dev/null || true
+# Remove the pipe if still present so the new instance starts fresh
+rm -f "${HOME}/.steam/steam.pipe" 2>/dev/null || true
 sleep 0.5
 
 LOG="${XDG_RUNTIME_DIR}/sunshine-labwc/steam-bigpicture.log"
