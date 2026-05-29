@@ -12,7 +12,6 @@ chmod +x \
   "${ROOT}/sunshine-vmon-recover.sh" \
   "${ROOT}/sunshine-start-vmon.sh" \
   "${ROOT}/sunshine-stop-vmon.sh" \
-  "${ROOT}/sunshine-start-vmon-offmon.sh" \
   "${ROOT}/sunshine-labwc-common.sh" \
   "${ROOT}/sunshine-labwc-service.sh" \
   "${ROOT}/sunshine-labwc-recover.sh" \

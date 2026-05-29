@@ -43,13 +43,12 @@ The project has two independent modes, each with its own common library and scri
 
 All shared logic lives in **`sunshine-vmon-common.sh`** — every other vmon script sources it.
 
-| Script | Role | Profile |
-|--------|------|---------|
-| `sunshine-vmon-service.sh` | Persistent systemd service: creates virtual monitor at login, keeps it alive, restores idle layout on exit | — |
-| `sunshine-start-vmon.sh` | Stream start: enable virtual, confirm it is enabled, point Sunshine to it; physical stays on | Desktop |
-| `sunshine-start-vmon-offmon.sh` | Stream start: enable virtual, confirm it is enabled, point Sunshine to it, then disable physical | Exclusive |
-| `sunshine-stop-vmon.sh` | Stream stop (both profiles): restore idle layout (re-enables physical if needed), point Sunshine back to physical | Desktop + Exclusive |
-| `sunshine-vmon-recover.sh` | Black-screen recovery: force all physical outputs on, disable virtual | — |
+| Script | Role |
+|--------|------|
+| `sunshine-vmon-service.sh` | Persistent systemd service: creates virtual monitor at login, keeps it alive, restores idle layout on exit |
+| `sunshine-start-vmon.sh` | Stream start: enable virtual monitor, point Sunshine to it; physical stays on |
+| `sunshine-stop-vmon.sh` | Stream stop: restore idle layout, point Sunshine back to physical |
+| `sunshine-vmon-recover.sh` | Black-screen recovery: force all physical outputs on, disable virtual |
 
 ### labwc mode
 
@@ -70,16 +69,6 @@ Shared logic lives in **`sunshine-labwc-common.sh`**. No kscreen-doctor, no KDE 
 - `apply_idle_layout` — canonical "stream ended" state: enable all physical outputs, disable virtual; used by service trap, stop scripts, and recover
 - `abort_stream_layout` — EXIT trap used in start scripts; runs if prep-cmd fails partway through, restores layout and restarts Sunshine
 - `set_sunshine_output` — writes `output_name = <value>` to `~/.config/sunshine/sunshine.conf` via `sed`; Sunshine re-reads this file at each new client connection, so no service restart is needed after changing it
-
-### Exclusive profile sequencing (order matters)
-
-`sunshine-start-vmon-offmon.sh` must follow this exact order to avoid a black screen or infinite restart loop:
-1. Enable virtual monitor (physical still on)
-2. Wait 2 s and confirm virtual is enabled
-3. Set `output_name` in `sunshine.conf` to the virtual output — **do NOT restart Sunshine here**
-4. Disable the physical monitor
-
-Sunshine re-reads `output_name` from the config when it sets up a new stream (after prep-cmd exits 0), so no restart is needed inside the prep-cmd. Restarting Sunshine from within the prep-cmd kills the process, Moonlight immediately reconnects to the new Sunshine, which runs the prep-cmd again, creating an infinite restart loop.
 
 ### labwc mode: how the socket handoff works
 

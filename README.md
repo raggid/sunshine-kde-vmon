@@ -1,60 +1,19 @@
 # sunshine-kde-vmon
 
-Scripts para streaming com [Sunshine](https://github.com/LizardByte/Sunshine) no KDE Plasma (Wayland), usando monitor virtual (`krfb-virtualmonitor`) e `kscreen-doctor`.
+Scripts para streaming com [Sunshine](https://github.com/LizardByte/Sunshine) no KDE Plasma (Wayland).
 
-O monitor virtual fica **sempre criado** (serviço systemd) e é apenas **ligado/desligado** ao iniciar ou terminar o stream. Isso evita o erro do Sunshine de “nenhum monitor conectado” quando o monitor físico está desligado.
+Dois modos independentes:
 
-## Arquitetura
+- **vmon** — monitor virtual dentro da sessão KDE. O desktop físico continua visível; o stream captura apenas o monitor virtual.
+- **labwc** — compositor Wayland headless separado. O stream roda num desktop completamente isolado (painel, janelas, apps próprios), sem tocar na sessão KDE física.
 
-```
-Login → sunshine-vmon.service (krfb-virtualmonitor)
-              ↓
-        Virtual-sunshine-vmon existe, desabilitado no KDE
-              ↓
-Stream start → kscreen-doctor enable virtual (+ disable físico no modo Exclusive)
-              ↓
-Stream stop  → kscreen-doctor disable virtual, enable físico
-              ↓
-        krfb continua rodando em segundo plano
-```
+## Três apps no Moonlight
 
-## Dois perfis no Moonlight
-
-| App Sunshine | Quando usar | Monitor físico (host) | Monitor virtual | Moonlight vê |
-|--------------|-------------|------------------------|-----------------|--------------|
-| **Desktop** | Notebook como **segunda tela** do PC (trabalho, desktop estendido) | **Ligado** — você continua vendo e usando o ultrawide | Ligado, resolução do cliente | Só o virtual |
-| **Desktop Exclusive** | Celular Android, **jogos / foco total** — nada deve aparecer no host | **Desligado** no KDE — tela física apagada | Ligado, único output ativo | Só o virtual |
-
-São perfis **diferentes de propósito**, não redundantes:
-
-- **Desktop** = dois monitores no KDE (físico + virtual), como um setup multi-monitor normal.
-- **Exclusive** = um monitor só no host (o virtual); o físico fica off para privacidade e para não “vazar” imagem na sua mesa.
-
-O Sunshine sempre captura `Virtual-sunshine-vmon` nos dois casos; a diferença é o que acontece **localmente** no quarto/escritório.
-
-## Scripts
-
-| Script | Descrição |
-|--------|-----------|
-| `sunshine-vmon-service.sh` | Serviço: cria o monitor virtual e deixa desabilitado |
-| `sunshine-start-vmon.sh` | Perfil **Desktop**: virtual on, físico **permanece on** |
-| `sunshine-start-vmon-offmon.sh` | Perfil **Exclusive**: virtual on, físico **off** |
-| `sunshine-stop-vmon.sh` | Undo de ambos os perfis: religa o físico se necessário, desliga o virtual |
-
-## Plasma Wayland e mensagem “X server” no boot
-
-No KDE Wayland **não há Xorg separado no login** — só Wayland + Xwayland. No journal pode aparecer:
-
-`Errors from xkbcomp are not fatal to the X server`
-
-Isso é **normal** e não indica falha do display. SDDM deve usar `startplasma-wayland`, não uma sessão X11 pura.
-
-## Requisitos
-
-- KDE Plasma 6 (Wayland)
-- [Sunshine](https://github.com/LizardByte/Sunshine) com `capture = kwin`
-- `krfb-virtualmonitor` (pacote `krfb` no Arch)
-- `kscreen-doctor` (pacote `kscreen`)
+| App | Modo | Comportamento |
+|-----|------|---------------|
+| **Desktop** | vmon | Monitor virtual ligado ao lado do físico; os dois coexistem |
+| **Desktop Headless** | labwc | Desktop KDE (plasmashell) isolado; o físico fica intacto |
+| **Steam Big Picture** | labwc | Steam Big Picture dentro do desktop headless |
 
 ## Instalação
 
@@ -64,91 +23,83 @@ cd ~/projects/sunshine-kde-vmon
 ./install.sh
 ```
 
-O `install.sh` habilita o serviço `sunshine-vmon.service` (monitor virtual persistente).
+O instalador habilita os serviços e escreve o drop-in para o `sunshine.service`. Veja `examples/apps.json` para os `prep-cmd` (substitua `/home/USER/` pelo caminho real).
 
-Aponte os `prep-cmd` do Sunshine para o diretório do clone (caminhos absolutos). Veja `examples/apps.json`.
+## Requisitos
+
+### vmon mode
+- KDE Plasma 6 (Wayland)
+- `krfb-virtualmonitor` (pacote `krfb`)
+- `kscreen-doctor` (pacote `kscreen`)
+- `capture = kwin` no `sunshine.conf`
+
+### labwc mode
+- `labwc`, `wlr-randr`
+- `python-evdev`, `python-pywayland` (relay de input)
+- `swaybg` (fallback de wallpaper)
+- `capture = wlr` e `output_name = HEADLESS-1` no `sunshine.conf`
+- Usuário no grupo `input`: `sudo usermod -aG input $USER` (requer logout)
 
 ## Configuração
 
-### Monitor físico
+### Monitor físico (vmon)
 
 ```bash
 kscreen-doctor -o
 ```
 
-O monitor físico é **detectado automaticamente** via `kscreen-doctor` (no seu sistema: `DP-1`). Para forçar outro conector:
+Detectado automaticamente. Para forçar um conector:
 
 ```bash
 export SUNSHINE_PRIMARY_OUTPUT=DP-1
 ```
 
-### Resolução padrão do monitor persistente
-
-Definida no serviço (padrão 1920x1080). No início de cada stream, os scripts ajustam para a resolução do cliente (`SUNSHINE_CLIENT_*`).
+### Resolução padrão
 
 ```bash
-# opcional, em ~/.config/systemd/user/sunshine-vmon.service.d/override.conf
+# ~/.config/systemd/user/sunshine-vmon.service.d/override.conf
 [Service]
 Environment=SUNSHINE_VMON_WIDTH=1920
 Environment=SUNSHINE_VMON_HEIGHT=1080
 Environment=SUNSHINE_VMON_FPS=60
 ```
 
-### Sunshine `apps.json`
-
-O Sunshine **exige** a chave `env` no `apps.json`. Sem ela, os apps não aparecem nos clientes Moonlight/Artemis.
-
-```bash
-systemctl --user restart sunshine
-```
-
-### Serviço do monitor virtual
+### Serviços
 
 ```bash
 systemctl --user status sunshine-vmon.service
-systemctl --user restart sunshine-vmon.service
-kscreen-doctor -o   # deve listar Virtual-sunshine-vmon (desabilitado fora do stream)
+systemctl --user status sunshine-labwc.service
 ```
 
-O serviço **não é habilitado automaticamente** no boot por padrão (`install.sh` pergunta antes). Teste com `systemctl --user start` antes de `enable`.
+## Recuperação
 
-### Recuperação de tela preta
-
-**TTY** (Ctrl+Alt+F3): faça login com o **mesmo usuário** da sessão (não use `root` direto):
+### vmon — tela preta
 
 ```bash
-/home/raggid/projects/sunshine-kde-vmon/sunshine-vmon-recover.sh
-```
-
-Se estiver como root:
-
-```bash
+./sunshine-vmon-recover.sh
+# De root no TTY:
 sudo -u raggid \
   XDG_RUNTIME_DIR=/run/user/1000 \
   WAYLAND_DISPLAY=wayland-0 \
   DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus \
-  /home/raggid/projects/sunshine-kde-vmon/sunshine-vmon-recover.sh
+  ./sunshine-vmon-recover.sh
 ```
 
-O recover antigo falhava no TTY sem `DBUS_SESSION_BUS_ADDRESS` e sem religar todos os outputs físicos.
+### labwc
 
-**Causas comuns de tela preta:**
-- Desktop Exclusive desliga o físico; o stream falha e o `undo` do Sunshine não roda.
-- `reload_sunshine` no meio do prep-cmd (versões antigas) derrubava o `krfb` no pior momento.
-
-**Importante:** encerre o stream no Moonlight antes de reiniciar o PC (`exit-timeout` = 30s nos apps).
+```bash
+./sunshine-labwc-recover.sh
+# ou
+systemctl --user restart sunshine-labwc.service
+```
 
 ## Variáveis de ambiente
 
-| Variável | Padrão | Uso |
-|----------|--------|-----|
-| `SUNSHINE_CLIENT_WIDTH` | `1920` | Resolução no início do stream |
-| `SUNSHINE_CLIENT_HEIGHT` | `1080` | Resolução no início do stream |
-| `SUNSHINE_CLIENT_FPS` | `60` | FPS no início do stream |
-| `SUNSHINE_PRIMARY_OUTPUT` | _(auto)_ | Monitor físico; detectado se omitido (fallback `DP-1`) |
-| `SUNSHINE_VMON_WIDTH` | `1920` | Resolução base do serviço persistente |
-| `SUNSHINE_VMON_HEIGHT` | `1080` | Resolução base do serviço persistente |
-| `SUNSHINE_VMON_FPS` | `60` | FPS base do serviço persistente |
+| Variável | Padrão | Modo |
+|----------|--------|------|
+| `SUNSHINE_PRIMARY_OUTPUT` | _(auto)_ | vmon |
+| `SUNSHINE_VMON_WIDTH/HEIGHT/FPS` | `1920/1080/60` | vmon |
+| `SUNSHINE_LABWC_IDLE_WIDTH/HEIGHT/FPS` | `1920/1080/60` | labwc |
 
 ## Licença
 
