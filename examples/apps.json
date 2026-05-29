@@ -4,7 +4,7 @@
             "allow-client-commands": false,
             "auto-detach": true,
             "exclude-global-prep-cmd": false,
-            "exit-timeout": 5,
+            "exit-timeout": 30,
             "image-path": "desktop.png",
             "name": "Desktop",
             "prep-cmd": [
@@ -20,72 +20,38 @@
             "allow-client-commands": false,
             "auto-detach": true,
             "exclude-global-prep-cmd": false,
-            "exit-timeout": 5,
+            "exit-timeout": 30,
             "image-path": "desktop.png",
-            "name": "Desktop Exclusive",
+            "name": "Desktop Headless",
             "prep-cmd": [
                 {
-                    "do": "/home/USER/projects/sunshine-kde-vmon/sunshine-start-vmon-offmon.sh",
-                    "undo": "/home/USER/projects/sunshine-kde-vmon/sunshine-stop-vmon.sh"
+                    "do": "/home/USER/projects/sunshine-kde-vmon/sunshine-start-labwc.sh",
+                    "undo": "/home/USER/projects/sunshine-kde-vmon/sunshine-stop-labwc.sh"
                 }
             ],
-            "uuid": "A3F8C1D2-4B5E-6F70-8A91-2C3D4E5F6071",
+            "uuid": "D9F5A617-8C43-4B21-AE32-5F6172839405",
             "wait-all": true
         },
         {
             "auto-detach": true,
             "detached": [
-                "setsid steam steam://open/bigpicture"
+                "setsid /home/USER/projects/sunshine-kde-vmon/sunshine-labwc-run.sh steam steam://open/bigpicture"
             ],
             "exclude-global-prep-cmd": false,
-            "exit-timeout": 5,
+            "exit-timeout": 30,
             "image-path": "steam.png",
             "name": "Steam Big Picture",
             "prep-cmd": [
                 {
-                    "do": "/home/USER/projects/sunshine-kde-vmon/sunshine-start-vmon-offmon.sh",
-                    "undo": "/home/USER/projects/sunshine-kde-vmon/sunshine-stop-vmon.sh"
+                    "do": "/home/USER/projects/sunshine-kde-vmon/sunshine-start-labwc.sh",
+                    "undo": "/home/USER/projects/sunshine-kde-vmon/sunshine-stop-labwc.sh"
                 },
                 {
                     "do": "",
-                    "undo": "setsid steam steam://close/bigpicture"
+                    "undo": "setsid /home/USER/projects/sunshine-kde-vmon/sunshine-labwc-run.sh steam steam://close/bigpicture"
                 }
             ],
             "uuid": "71856C4E-B04C-5A01-2E9D-0A3DE917B4DA",
-            "wait-all": true
-        },
-        {
-            "allow-client-commands": false,
-            "auto-detach": true,
-            "exclude-global-prep-cmd": false,
-            "exit-timeout": 5,
-            "image-path": "desktop.png",
-            "name": "Stream Desktop (labwc)",
-            "cmd": "",
-            "prep-cmd": [
-                {
-                    "do": "/home/USER/projects/sunshine-kde-vmon/sunshine-start-labwc.sh",
-                    "undo": "/home/USER/projects/sunshine-kde-vmon/sunshine-stop-labwc.sh"
-                }
-            ],
-            "uuid": "B7D3E4F5-6A71-8C90-1B22-3D4E5F607182",
-            "wait-all": true
-        },
-        {
-            "allow-client-commands": false,
-            "auto-detach": true,
-            "exclude-global-prep-cmd": false,
-            "exit-timeout": 10,
-            "image-path": "steam.png",
-            "name": "Steam (labwc)",
-            "cmd": "/home/USER/projects/sunshine-kde-vmon/sunshine-labwc-run.sh steam",
-            "prep-cmd": [
-                {
-                    "do": "/home/USER/projects/sunshine-kde-vmon/sunshine-start-labwc.sh",
-                    "undo": "/home/USER/projects/sunshine-kde-vmon/sunshine-stop-labwc.sh"
-                }
-            ],
-            "uuid": "C8E4F506-7B82-9DA1-2C33-4E5F61728293",
             "wait-all": true
         }
     ],
