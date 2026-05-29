@@ -511,22 +511,32 @@ class InputRelay:
                 vk.key(t, code, wl_state)
                 self._display.flush()
 
+    def _release_devices(self):
+        """Ungrab and close all input devices; keep Wayland connection alive."""
+        for dev in self._devices:
+            try:
+                dev.ungrab()
+                dev.close()
+            except Exception:
+                pass
+        for dev, ui in self._gamepad_relays.items():
+            try:
+                dev.ungrab()
+                dev.close()
+            except Exception:
+                pass
+            try:
+                ui.close()
+            except Exception:
+                pass
+        self._devices.clear()
+        self._gamepad_relays.clear()
+        self._grabbed_paths.clear()
+        self._pending_abs.clear()
+
     def run(self, protocols_cache: Path):
-        # Wait indefinitely for the streaming server's core input devices.
-        # They appear when the server starts (or when it first accepts a client
-        # on some builds), so there is no useful upper bound on wait time.
-        print("[relay] waiting for streaming server input devices…", flush=True)
-        dev_map: dict[str, str] = {}
-        while not any(not k.startswith("gamepad:") for k in dev_map):
-            dev_map = _find_sunshine_devices()
-            if not any(not k.startswith("gamepad:") for k in dev_map):
-                time.sleep(5)
-
-        self._open_devices(dev_map)
-        if not self._devices:
-            print("[relay] could not open any device; aborting", flush=True)
-            sys.exit(1)
-
+        # Connect to labwc once; keep the connection for the lifetime of
+        # this process regardless of how many times client sessions start/stop.
         self._connect_wayland(protocols_cache)
         if not self._vpointer and not self._vkeyboard:
             print("[relay] no virtual devices created; aborting", flush=True)
@@ -534,36 +544,8 @@ class InputRelay:
 
         wayland_fd = self._display.get_fd()
 
-        def _build_fds() -> dict[int, evdev.InputDevice]:
-            fds = {dev.fd: dev for dev in self._devices}
-            fds.update({dev.fd: dev for dev in self._gamepad_relays})
-            return fds
-
-        dev_fds = _build_fds()
-        all_fds = list(dev_fds) + [wayland_fd]
-
-        print("[relay] running — forwarding input to labwc", flush=True)
-        if self._gamepad_relays:
-            print(f"[relay] {len(self._gamepad_relays)} gamepad(s) relayed via uinput",
-                  flush=True)
-
-        def _cleanup(signo=None, frame=None):
-            for dev in self._devices:
-                try:
-                    dev.ungrab()
-                    dev.close()
-                except Exception:
-                    pass
-            for dev, ui in self._gamepad_relays.items():
-                try:
-                    dev.ungrab()
-                    dev.close()
-                except Exception:
-                    pass
-                try:
-                    ui.close()
-                except Exception:
-                    pass
+        def _shutdown(signo=None, frame=None):
+            self._release_devices()
             if self._vpointer:
                 try:
                     self._vpointer.destroy()
@@ -576,46 +558,82 @@ class InputRelay:
                     pass
             sys.exit(0)
 
-        signal.signal(signal.SIGTERM, _cleanup)
-        signal.signal(signal.SIGINT, _cleanup)
+        signal.signal(signal.SIGTERM, _shutdown)
+        signal.signal(signal.SIGINT, _shutdown)
 
-        last_rescan = time.monotonic()
-
+        # Outer loop: survives device destroy/recreate between streaming sessions.
+        # The streaming server destroys its virtual devices when a client
+        # disconnects and recreates them (possibly with new event numbers) when
+        # the next client connects. We loop back here on every device loss.
         while True:
-            try:
-                rlist, _, _ = select.select(all_fds, [], [], 5.0)
-            except (OSError, ValueError):
-                break
+            print("[relay] waiting for streaming server input devices…", flush=True)
 
-            # Periodic rescan: pick up gamepads that appear after client connects.
-            now = time.monotonic()
-            if now - last_rescan >= 5.0:
-                prev_count = len(self._gamepad_relays)
-                self._rescan_gamepads()
-                if len(self._gamepad_relays) != prev_count:
-                    dev_fds = _build_fds()
-                    all_fds = list(dev_fds) + [wayland_fd]
-                    print(f"[relay] {len(self._gamepad_relays)} gamepad(s) now active",
-                          flush=True)
-                last_rescan = now
+            # Poll for core devices; also dispatch Wayland events while waiting
+            # so the virtual pointer/keyboard stay responsive.
+            while True:
+                dev_map = _find_sunshine_devices()
+                if any(not k.startswith("gamepad:") for k in dev_map):
+                    break
+                try:
+                    r, _, _ = select.select([wayland_fd], [], [], 5.0)
+                    if r:
+                        self._display.dispatch(block=False)
+                except (OSError, ValueError):
+                    pass
 
-            for fd in rlist:
-                if fd == wayland_fd:
-                    self._display.dispatch(block=False)
-                elif fd in dev_fds:
-                    dev = dev_fds[fd]
-                    try:
-                        for event in dev.read():
-                            self._dispatch_evdev_event(event, dev)
-                    except OSError:
-                        print(f"[relay] device {dev.path} lost", flush=True)
-                        dev_fds.pop(fd, None)
-                        all_fds = [f for f in all_fds if f != fd]
-                        if not dev_fds:
-                            print("[relay] all devices lost; exiting", flush=True)
-                            _cleanup()
+            self._open_devices(dev_map)
+            if not self._devices:
+                time.sleep(5)
+                continue
 
-        _cleanup()
+            print("[relay] running — forwarding input to labwc", flush=True)
+            if self._gamepad_relays:
+                print(f"[relay] {len(self._gamepad_relays)} gamepad(s) relayed via uinput",
+                      flush=True)
+
+            def _build_fds() -> dict[int, evdev.InputDevice]:
+                fds = {dev.fd: dev for dev in self._devices}
+                fds.update({dev.fd: dev for dev in self._gamepad_relays})
+                return fds
+
+            dev_fds = _build_fds()
+            all_fds = list(dev_fds) + [wayland_fd]
+            last_rescan = time.monotonic()
+
+            # Inner loop: forward events until the server destroys its devices.
+            while dev_fds:
+                try:
+                    rlist, _, _ = select.select(all_fds, [], [], 5.0)
+                except (OSError, ValueError):
+                    break
+
+                now = time.monotonic()
+                if now - last_rescan >= 5.0:
+                    prev_count = len(self._gamepad_relays)
+                    self._rescan_gamepads()
+                    if len(self._gamepad_relays) != prev_count:
+                        dev_fds = _build_fds()
+                        all_fds = list(dev_fds) + [wayland_fd]
+                        print(f"[relay] {len(self._gamepad_relays)} gamepad(s) now active",
+                              flush=True)
+                    last_rescan = now
+
+                for fd in rlist:
+                    if fd == wayland_fd:
+                        self._display.dispatch(block=False)
+                    elif fd in dev_fds:
+                        dev = dev_fds[fd]
+                        try:
+                            for event in dev.read():
+                                self._dispatch_evdev_event(event, dev)
+                        except OSError:
+                            print(f"[relay] device {dev.path} lost", flush=True)
+                            dev_fds.pop(fd, None)
+                            all_fds = [f for f in all_fds if f != fd]
+
+            # All devices gone — clean up grabs and loop back to wait.
+            print("[relay] all devices lost; waiting for next session…", flush=True)
+            self._release_devices()
 
 
 # ---------------------------------------------------------------------------

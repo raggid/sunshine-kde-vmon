@@ -43,5 +43,7 @@ echo "[steam-bp] stopping existing Steam instance" >&2
 pkill -x steam 2>/dev/null || true
 sleep 2
 
+LOG="${XDG_RUNTIME_DIR}/sunshine-labwc/steam-bigpicture.log"
 echo "[steam-bp] starting Steam gamepadui on ${WAYLAND_DISPLAY}" >&2
-exec steam -gamepadui
+echo "[steam-bp] log: ${LOG}" >&2
+exec steam -gamepadui > "${LOG}" 2>&1
