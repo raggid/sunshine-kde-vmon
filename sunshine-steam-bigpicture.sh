@@ -1,14 +1,10 @@
 #!/usr/bin/env bash
 # Launch Steam Big Picture inside the labwc stream desktop.
 #
-# Problem: Steam is a single-instance app. If Steam is already running on the
-# physical KDE desktop, "steam steam://open/bigpicture" sends the URL to the
-# existing KDE instance (via ~/.steam/steam.pipe) — it never opens in labwc.
-#
-# Solution: use gamescope, which creates a completely isolated nested compositor.
-# Steam runs inside gamescope as a fresh session, independent of the KDE one.
-# Without gamescope, we kill the existing Steam instance and restart it inside
-# labwc (disruptive but functional).
+# Kills plasmashell (not needed; Steam gamepadui is the whole UI) and any
+# existing Steam instance (single-instance IPC would otherwise redirect the
+# launch to the physical desktop Steam), then starts Steam in gamepadui mode
+# pointing at the labwc compositor.
 #
 # Usage in apps.json "detached":
 #   setsid /path/to/sunshine-steam-bigpicture.sh
@@ -31,27 +27,17 @@ fi
 
 export AT_SPI_BUS_ADDRESS=
 
-WIDTH="${SUNSHINE_CLIENT_WIDTH:-1920}"
-HEIGHT="${SUNSHINE_CLIENT_HEIGHT:-1080}"
+# plasmashell is not needed for Steam gamepadui; killing it frees RAM and
+# avoids any compositor z-order confusion with a fullscreen Steam window.
+pkill -x plasmashell 2>/dev/null || true
 
-# Steam uses a single-instance IPC pipe (~/.steam/steam.pipe).  Any new
-# "steam" invocation sends its arguments to the already-running instance and
-# exits — even inside gamescope.  We must kill the existing Steam first so
-# gamescope gets a real Steam process as its client.
+# Steam uses a single-instance IPC pipe (~/.steam/steam.pipe). Any new
+# invocation sends its arguments to the already-running instance and exits,
+# even with a different WAYLAND_DISPLAY. Kill the physical-desktop Steam so
+# the new invocation starts a fresh process connected to labwc.
 echo "[steam-bp] stopping existing Steam instance" >&2
 pkill -x steam 2>/dev/null || true
 sleep 2
 
-if command -v gamescope &>/dev/null; then
-    echo "[steam-bp] using gamescope ${WIDTH}x${HEIGHT}" >&2
-    # -e  : Steam integration mode (overlay, HDR hints, etc.)
-    # -f  : fullscreen inside the outer compositor (labwc)
-    # -W/-H: resolution presented to Sunshine's screen capture
-    exec gamescope \
-        -W "${WIDTH}" -H "${HEIGHT}" \
-        -w "${WIDTH}" -h "${HEIGHT}" \
-        -e -f \
-        -- steam -gamepadui
-else
-    exec steam -gamepadui
-fi
+echo "[steam-bp] starting Steam gamepadui on ${WAYLAND_DISPLAY}" >&2
+exec steam -gamepadui

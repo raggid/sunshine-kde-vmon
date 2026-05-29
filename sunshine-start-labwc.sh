@@ -40,3 +40,15 @@ fi
 set_sunshine_output "${LABWC_OUTPUT}"
 
 echo "sunshine-start-labwc: stream started at ${WIDTH}x${HEIGHT}@${FPS}Hz on ${LABWC_OUTPUT}" >&2
+
+# If plasmashell was killed by a previous Steam Big Picture session, revive it
+# so Desktop Headless gets a full KDE desktop again.
+if command -v plasmashell >/dev/null 2>&1 && ! pgrep -x plasmashell >/dev/null 2>&1; then
+  echo "sunshine-start-labwc: restarting plasmashell" >&2
+  WAYLAND_DISPLAY="${LABWC_SOCKET_LINK_NAME}" \
+  XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR}" \
+  QT_QPA_PLATFORM=wayland \
+  KDE_FULL_SESSION=true \
+  PLASMA_USE_QT_SCALING=1 \
+    dbus-run-session -- plasmashell 2>/dev/null &
+fi

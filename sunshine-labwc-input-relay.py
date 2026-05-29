@@ -231,10 +231,17 @@ def _get_xkb_keymap_fd() -> tuple[int, int]:
 # Find Sunshine input devices via /proc/bus/input/devices
 # ---------------------------------------------------------------------------
 
+# Polaris uses "Polaris Mouse passthrough" / "Polaris Keyboard passthrough".
+# Upstream Sunshine uses "Mouse passthrough" / "Keyboard passthrough".
+# Keep both so the relay works with either server.
 _SUNSHINE_DEVICE_NAMES = {
     "Mouse passthrough",
     "Mouse passthrough (absolute)",
     "Keyboard passthrough",
+    "Polaris Mouse passthrough",
+    "Polaris Keyboard passthrough",
+    "Touch passthrough",
+    "Pen passthrough",
 }
 
 # Buttons that indicate a gamepad (any of these being present is enough).
@@ -505,19 +512,15 @@ class InputRelay:
                 self._display.flush()
 
     def run(self, protocols_cache: Path):
-        # Sunshine starts after labwc service (Requires= dependency).
-        # Wait up to 60 s for its core mouse/keyboard devices to appear.
+        # Wait indefinitely for the streaming server's core input devices.
+        # They appear when the server starts (or when it first accepts a client
+        # on some builds), so there is no useful upper bound on wait time.
+        print("[relay] waiting for streaming server input devices…", flush=True)
         dev_map: dict[str, str] = {}
-        for _ in range(120):
+        while not any(not k.startswith("gamepad:") for k in dev_map):
             dev_map = _find_sunshine_devices()
-            if any(not k.startswith("gamepad:") for k in dev_map):
-                break
-            time.sleep(0.5)
-
-        if not any(not k.startswith("gamepad:") for k in dev_map):
-            print("[relay] no Sunshine devices found after 60s; aborting",
-                  flush=True)
-            sys.exit(1)
+            if not any(not k.startswith("gamepad:") for k in dev_map):
+                time.sleep(5)
 
         self._open_devices(dev_map)
         if not self._devices:
