@@ -1,0 +1,16 @@
+[Unit]
+Description=Sunshine headless stream compositor (labwc)
+Documentation=https://github.com/papi-ux/sunshine-kde-vmon
+After=graphical-session.target
+Wants=graphical-session.target
+
+[Service]
+Type=simple
+Environment=XDG_RUNTIME_DIR=/run/user/%U
+ExecStart=%h/projects/sunshine-kde-vmon/sunshine-labwc-service.sh
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=60
+
+[Install]
+WantedBy=default.target
