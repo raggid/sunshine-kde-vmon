@@ -597,13 +597,15 @@ class InputRelay:
                 return fds
 
             dev_fds = _build_fds()
-            all_fds = list(dev_fds) + [wayland_fd]
             last_rescan = time.monotonic()
 
             # Inner loop: forward events until the server destroys its devices.
+            # Only select on evdev fds — we only send to Wayland (never receive),
+            # so including wayland_fd in select causes a busy-loop as labwc
+            # continuously sends protocol events we don't consume.
             while dev_fds:
                 try:
-                    rlist, _, _ = select.select(all_fds, [], [], 5.0)
+                    rlist, _, _ = select.select(list(dev_fds), [], [], 5.0)
                 except (OSError, ValueError):
                     break
 
@@ -613,15 +615,12 @@ class InputRelay:
                     self._rescan_gamepads()
                     if len(self._gamepad_relays) != prev_count:
                         dev_fds = _build_fds()
-                        all_fds = list(dev_fds) + [wayland_fd]
                         print(f"[relay] {len(self._gamepad_relays)} gamepad(s) now active",
                               flush=True)
                     last_rescan = now
 
                 for fd in rlist:
-                    if fd == wayland_fd:
-                        self._display.dispatch(block=False)
-                    elif fd in dev_fds:
+                    if fd in dev_fds:
                         dev = dev_fds[fd]
                         try:
                             for event in dev.read():
@@ -629,7 +628,6 @@ class InputRelay:
                         except OSError:
                             print(f"[relay] device {dev.path} lost", flush=True)
                             dev_fds.pop(fd, None)
-                            all_fds = [f for f in all_fds if f != fd]
 
             # All devices gone — clean up grabs and loop back to wait.
             print("[relay] all devices lost; waiting for next session…", flush=True)
