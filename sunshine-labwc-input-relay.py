@@ -2,12 +2,13 @@
 """
 sunshine-labwc-input-relay.py
 
-Exclusively grabs Sunshine's uinput devices (Mouse passthrough, Keyboard passthrough)
-and forwards their events into labwc via zwlr_virtual_pointer_v1 and
-zwp_virtual_keyboard_v1, preventing KDE from receiving any Sunshine input.
+Exclusively grabs Sunshine's uinput devices (Mouse passthrough, Keyboard passthrough,
+and any virtual gamepads) and forwards their events into labwc:
+  - Mouse/keyboard → zwlr_virtual_pointer_v1 / zwp_virtual_keyboard_v1 (Wayland)
+  - Gamepads       → new uinput device (passthrough; readable by apps in labwc)
 
 Requires: python-evdev, python-pywayland, libxkbcommon
-Systemd unit must run with SupplementaryGroups=input.
+User must be in the 'input' group: sudo usermod -aG input $USER
 """
 
 import os
@@ -17,10 +18,7 @@ import time
 import select
 import ctypes
 import ctypes.util
-import tempfile
 import subprocess
-import importlib
-import importlib.util
 import struct
 from pathlib import Path
 
@@ -239,27 +237,76 @@ _SUNSHINE_DEVICE_NAMES = {
     "Keyboard passthrough",
 }
 
+# Buttons that indicate a gamepad (any of these being present is enough).
+_GAMEPAD_BTN_INDICATORS = {
+    ecodes.BTN_SOUTH,       # A on Xbox, Cross on DS
+    ecodes.BTN_GAMEPAD,     # alias for BTN_SOUTH on some kernels
+    ecodes.BTN_JOYSTICK,    # older joystick style
+}
+
+def _is_virtual_gamepad(path: str) -> bool:
+    """Return True if the device at path looks like a virtual (uinput) gamepad."""
+    try:
+        dev = evdev.InputDevice(path)
+        caps = dev.capabilities()
+        dev.close()
+    except Exception:
+        return False
+
+    btn_keys = set(caps.get(ecodes.EV_KEY, []))
+    abs_axes = {a[0] if isinstance(a, tuple) else a
+                for a in caps.get(ecodes.EV_ABS, [])}
+
+    has_gamepad_btn = bool(btn_keys & _GAMEPAD_BTN_INDICATORS)
+    has_sticks = bool(abs_axes & {ecodes.ABS_X, ecodes.ABS_Y,
+                                   ecodes.ABS_RX, ecodes.ABS_RY})
+    return has_gamepad_btn and has_sticks
+
+
 def _find_sunshine_devices() -> dict[str, str]:
-    """Parse /proc/bus/input/devices, return {name: /dev/input/eventN}."""
-    found = {}
-    current_name = None
-    current_event = None
-    with open("/proc/bus/input/devices") as f:
-        for line in f:
-            line = line.rstrip()
-            if line.startswith("N: Name="):
-                current_name = line[8:].strip('"')
-                current_event = None
-            elif line.startswith("H: Handlers="):
-                for tok in line[12:].split():
-                    if tok.startswith("event"):
-                        current_event = tok
-                        break
-            elif line == "" and current_name and current_event:
-                if current_name in _SUNSHINE_DEVICE_NAMES:
-                    found[current_name] = f"/dev/input/{current_event}"
-                current_name = None
-                current_event = None
+    """Parse /proc/bus/input/devices; return {name: /dev/input/eventN}.
+
+    Returns known Sunshine mouse/keyboard devices by exact name, plus any
+    virtual (uinput-backed) gamepad devices keyed as 'gamepad:<name>'.
+    Virtual devices are identified by their sysfs path containing
+    '/virtual/input/' — real hardware never has that.
+    """
+    found: dict[str, str] = {}
+    cur_name = cur_event = cur_sysfs = None
+
+    def _commit():
+        nonlocal cur_name, cur_event, cur_sysfs
+        if not cur_name or not cur_event:
+            cur_name = cur_event = cur_sysfs = None
+            return
+        path = f"/dev/input/{cur_event}"
+        if cur_name in _SUNSHINE_DEVICE_NAMES:
+            found[cur_name] = path
+        elif cur_sysfs and "/virtual/input/" in cur_sysfs:
+            if _is_virtual_gamepad(path):
+                found[f"gamepad:{cur_name}"] = path
+        cur_name = cur_event = cur_sysfs = None
+
+    try:
+        with open("/proc/bus/input/devices") as f:
+            for line in f:
+                line = line.rstrip()
+                if line.startswith("N: Name="):
+                    _commit()
+                    cur_name = line[8:].strip('"')
+                elif line.startswith("S: Sysfs="):
+                    cur_sysfs = line[9:].strip()
+                elif line.startswith("H: Handlers="):
+                    for tok in line[12:].split():
+                        if tok.startswith("event"):
+                            cur_event = tok
+                            break
+                elif line == "":
+                    _commit()
+        _commit()
+    except OSError:
+        pass
+
     return found
 
 # ---------------------------------------------------------------------------
@@ -278,24 +325,13 @@ def _collect_globals(display: Display) -> dict[str, tuple[int, int]]:
     display.roundtrip()
     return result
 
-def _bind_global(display, registry, globals_map, interface_class, iface_name):
-    """Bind a single global interface; returns the proxy or None."""
-    if iface_name not in globals_map:
-        return None
-    id_, version = globals_map[iface_name]
-    proxy = registry.bind(id_, interface_class.proxy_class, min(version, interface_class.version))
-    return proxy
-
 # ---------------------------------------------------------------------------
 # Input event relay
 # ---------------------------------------------------------------------------
 
-# Time helper
 def _ms() -> int:
     return int(time.monotonic() * 1000) & 0xFFFFFFFF
 
-# evdev button codes → Wayland button codes (Linux input layer, same values)
-# wl_pointer.button uses Linux BTN_* codes directly.
 _BTN_CODES = {ecodes.BTN_LEFT, ecodes.BTN_RIGHT, ecodes.BTN_MIDDLE,
               ecodes.BTN_SIDE, ecodes.BTN_EXTRA, ecodes.BTN_FORWARD,
               ecodes.BTN_BACK, ecodes.BTN_TASK}
@@ -307,20 +343,56 @@ class InputRelay:
         self._vpointer = None
         self._vkeyboard = None
         self._display = None
+        # mouse + keyboard devices
         self._devices: list[evdev.InputDevice] = []
-        self._pending_abs: dict = {}  # axis accumulators for ABS device
+        # gamepad device → its uinput passthrough clone
+        self._gamepad_relays: dict[evdev.InputDevice, evdev.UInput] = {}
+        # paths already grabbed (avoid double-grab on rescan)
+        self._grabbed_paths: set[str] = set()
+        self._pending_abs: dict = {}
 
     def _open_devices(self, dev_map: dict[str, str]):
         for name, path in dev_map.items():
+            if path in self._grabbed_paths:
+                continue
             try:
                 dev = evdev.InputDevice(path)
                 dev.grab()
-                self._devices.append(dev)
-                print(f"[relay] grabbed {path} ({name})", flush=True)
+                self._grabbed_paths.add(path)
+
+                if name.startswith("gamepad:"):
+                    real_name = name[8:]
+                    try:
+                        # Clone all capabilities; new device is visible to
+                        # apps inside labwc (e.g. Steam under gamescope).
+                        ui = evdev.UInput.from_device(dev,
+                                                      name=f"labwc:{real_name}")
+                        self._gamepad_relays[dev] = ui
+                        print(f"[relay] grabbed gamepad {path} ({real_name}), "
+                              f"re-emitting via uinput as 'labwc:{real_name}'",
+                              flush=True)
+                    except Exception as e:
+                        print(f"[relay] WARN: UInput clone failed for {path}: {e}",
+                              flush=True)
+                        # Grab without relay so KDE at least doesn't see it.
+                        self._devices.append(dev)
+                else:
+                    self._devices.append(dev)
+                    print(f"[relay] grabbed {path} ({name})", flush=True)
+
             except PermissionError:
-                print(f"[relay] WARN: no permission for {path}; add user to 'input' group", flush=True)
+                print(f"[relay] WARN: no permission for {path}; "
+                      "add user to 'input' group", flush=True)
             except Exception as e:
                 print(f"[relay] WARN: could not grab {path}: {e}", flush=True)
+
+    def _rescan_gamepads(self):
+        """Check for newly connected Sunshine gamepads and grab them."""
+        dev_map = _find_sunshine_devices()
+        new = {k: v for k, v in dev_map.items()
+               if k.startswith("gamepad:") and v not in self._grabbed_paths}
+        if new:
+            self._open_devices(new)
 
     def _connect_wayland(self, protocols_cache: Path):
         (ZwlrVPManager, ZwlrVP,
@@ -330,26 +402,19 @@ class InputRelay:
         self._display.connect()
 
         globals_map = _collect_globals(self._display)
-        registry = self._display.get_registry()
-        # Re-bind registry to get actual proxy for binding
         reg = self._display.get_registry()
 
-        # reg.bind(id, interface_class, version) — pass the Interface class,
-        # not its proxy_class; the bind method reads interface_class.name.
-        # Bind wl_seat (needed for virtual keyboard)
         seat = None
         if "wl_seat" in globals_map:
             id_, ver = globals_map["wl_seat"]
             seat = reg.bind(id_, WlSeat, min(ver, WlSeat.version))
 
-        # Bind virtual pointer manager
         vp_mgr = None
         if "zwlr_virtual_pointer_manager_v1" in globals_map:
             id_, ver = globals_map["zwlr_virtual_pointer_manager_v1"]
             vp_mgr = reg.bind(id_, ZwlrVPManager,
                               min(ver, ZwlrVPManager.version))
 
-        # Bind virtual keyboard manager
         vk_mgr = None
         if "zwp_virtual_keyboard_manager_v1" in globals_map:
             id_, ver = globals_map["zwp_virtual_keyboard_manager_v1"]
@@ -364,10 +429,9 @@ class InputRelay:
 
         if vk_mgr and seat:
             self._vkeyboard = vk_mgr.create_virtual_keyboard(seat)
-            # Send keymap
             try:
                 fd, size = _get_xkb_keymap_fd()
-                self._vkeyboard.keymap(1, fd, size)  # format=XKB_KEYMAP_FORMAT_TEXT_V1
+                self._vkeyboard.keymap(1, fd, size)
                 os.close(fd)
                 print("[relay] virtual keyboard created + keymap sent", flush=True)
             except Exception as e:
@@ -377,8 +441,18 @@ class InputRelay:
 
         self._display.flush()
 
-    def _dispatch_evdev_event(self, event: evdev.InputEvent):
-        """Forward a single evdev event to the appropriate virtual device."""
+    def _dispatch_evdev_event(self, event: evdev.InputEvent,
+                               source_dev: evdev.InputDevice):
+        # Gamepad: verbatim passthrough to uinput clone.
+        if source_dev in self._gamepad_relays:
+            ui = self._gamepad_relays[source_dev]
+            try:
+                ui.write(event.type, event.code, event.value)
+            except Exception:
+                pass
+            return
+
+        # Mouse / keyboard forwarding via Wayland virtual devices.
         t = _ms()
         vp = self._vpointer
         vk = self._vkeyboard
@@ -393,16 +467,15 @@ class InputRelay:
                 vp.frame()
                 self._display.flush()
             elif event.code == ecodes.REL_WHEEL:
-                vp.axis(t, 0, -event.value * 10)  # axis 0 = vertical
+                vp.axis(t, 0, -event.value * 10)
                 vp.frame()
                 self._display.flush()
             elif event.code == ecodes.REL_HWHEEL:
-                vp.axis(t, 1, event.value * 10)   # axis 1 = horizontal
+                vp.axis(t, 1, event.value * 10)
                 vp.frame()
                 self._display.flush()
 
         elif event.type == ecodes.EV_ABS and vp:
-            # Mouse passthrough (absolute) — accumulate per SYN_REPORT
             if event.code == ecodes.ABS_X:
                 self._pending_abs["x"] = event.value
             elif event.code == ecodes.ABS_Y:
@@ -412,7 +485,6 @@ class InputRelay:
             if event.code == ecodes.SYN_REPORT and self._pending_abs:
                 x = self._pending_abs.get("x", 0)
                 y = self._pending_abs.get("y", 0)
-                # Use 65535 as extent (Sunshine uses abs max 65535)
                 vp.motion_absolute(t, x, y, 65535, 65535)
                 vp.frame()
                 self._pending_abs.clear()
@@ -423,27 +495,28 @@ class InputRelay:
             state = event.value  # 0=up, 1=down, 2=repeat
 
             if code in _BTN_CODES and vp:
-                if state != 2:  # buttons have no repeat
+                if state != 2:
                     vp.button(t, code, state)
                     vp.frame()
                     self._display.flush()
             elif vk:
-                # Wayland key events use repeat semantics: send 1 for repeat too
                 wl_state = 1 if state >= 1 else 0
                 vk.key(t, code, wl_state)
                 self._display.flush()
 
     def run(self, protocols_cache: Path):
-        # Sunshine starts after the labwc service (Requires= dependency).
-        # Wait up to 60 s for its uinput devices to appear.
-        dev_map = {}
+        # Sunshine starts after labwc service (Requires= dependency).
+        # Wait up to 60 s for its core mouse/keyboard devices to appear.
+        dev_map: dict[str, str] = {}
         for _ in range(120):
             dev_map = _find_sunshine_devices()
-            if dev_map:
+            if any(not k.startswith("gamepad:") for k in dev_map):
                 break
             time.sleep(0.5)
-        if not dev_map:
-            print("[relay] no Sunshine devices found after 60s; aborting", flush=True)
+
+        if not any(not k.startswith("gamepad:") for k in dev_map):
+            print("[relay] no Sunshine devices found after 60s; aborting",
+                  flush=True)
             sys.exit(1)
 
         self._open_devices(dev_map)
@@ -457,16 +530,35 @@ class InputRelay:
             sys.exit(1)
 
         wayland_fd = self._display.get_fd()
-        dev_fds = {dev.fd: dev for dev in self._devices}
-        all_fds = list(dev_fds.keys()) + [wayland_fd]
+
+        def _build_fds() -> dict[int, evdev.InputDevice]:
+            fds = {dev.fd: dev for dev in self._devices}
+            fds.update({dev.fd: dev for dev in self._gamepad_relays})
+            return fds
+
+        dev_fds = _build_fds()
+        all_fds = list(dev_fds) + [wayland_fd]
 
         print("[relay] running — forwarding input to labwc", flush=True)
+        if self._gamepad_relays:
+            print(f"[relay] {len(self._gamepad_relays)} gamepad(s) relayed via uinput",
+                  flush=True)
 
         def _cleanup(signo=None, frame=None):
             for dev in self._devices:
                 try:
                     dev.ungrab()
                     dev.close()
+                except Exception:
+                    pass
+            for dev, ui in self._gamepad_relays.items():
+                try:
+                    dev.ungrab()
+                    dev.close()
+                except Exception:
+                    pass
+                try:
+                    ui.close()
                 except Exception:
                     pass
             if self._vpointer:
@@ -484,11 +576,25 @@ class InputRelay:
         signal.signal(signal.SIGTERM, _cleanup)
         signal.signal(signal.SIGINT, _cleanup)
 
+        last_rescan = time.monotonic()
+
         while True:
             try:
                 rlist, _, _ = select.select(all_fds, [], [], 5.0)
             except (OSError, ValueError):
                 break
+
+            # Periodic rescan: pick up gamepads that appear after client connects.
+            now = time.monotonic()
+            if now - last_rescan >= 5.0:
+                prev_count = len(self._gamepad_relays)
+                self._rescan_gamepads()
+                if len(self._gamepad_relays) != prev_count:
+                    dev_fds = _build_fds()
+                    all_fds = list(dev_fds) + [wayland_fd]
+                    print(f"[relay] {len(self._gamepad_relays)} gamepad(s) now active",
+                          flush=True)
+                last_rescan = now
 
             for fd in rlist:
                 if fd == wayland_fd:
@@ -497,11 +603,11 @@ class InputRelay:
                     dev = dev_fds[fd]
                     try:
                         for event in dev.read():
-                            self._dispatch_evdev_event(event)
+                            self._dispatch_evdev_event(event, dev)
                     except OSError:
                         print(f"[relay] device {dev.path} lost", flush=True)
-                        all_fds.remove(fd)
-                        dev_fds.pop(fd)
+                        dev_fds.pop(fd, None)
+                        all_fds = [f for f in all_fds if f != fd]
                         if not dev_fds:
                             print("[relay] all devices lost; exiting", flush=True)
                             _cleanup()

@@ -18,7 +18,8 @@ chmod +x \
   "${ROOT}/sunshine-start-labwc.sh" \
   "${ROOT}/sunshine-stop-labwc.sh" \
   "${ROOT}/sunshine-labwc-run.sh" \
-  "${ROOT}/sunshine-labwc-input-relay.py"
+  "${ROOT}/sunshine-labwc-input-relay.py" \
+  "${ROOT}/sunshine-steam-bigpicture.sh"
 
 mkdir -p "${SYSTEMD_USER}"
 cat > "${UNIT}" <<EOF

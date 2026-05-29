@@ -35,7 +35,7 @@
         {
             "auto-detach": true,
             "detached": [
-                "setsid /home/USER/projects/sunshine-kde-vmon/sunshine-labwc-run.sh steam steam://open/bigpicture"
+                "setsid /home/USER/projects/sunshine-kde-vmon/sunshine-steam-bigpicture.sh"
             ],
             "exclude-global-prep-cmd": false,
             "exit-timeout": 30,
@@ -48,7 +48,7 @@
                 },
                 {
                     "do": "",
-                    "undo": "setsid /home/USER/projects/sunshine-kde-vmon/sunshine-labwc-run.sh steam steam://close/bigpicture"
+                    "undo": "pkill -x gamescope; pkill -x steam"
                 }
             ],
             "uuid": "71856C4E-B04C-5A01-2E9D-0A3DE917B4DA",
