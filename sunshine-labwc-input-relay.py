@@ -352,8 +352,10 @@ class InputRelay:
         self._display = None
         # mouse + keyboard devices
         self._devices: list[evdev.InputDevice] = []
-        # gamepad device → its uinput passthrough clone
-        self._gamepad_relays: dict[evdev.InputDevice, evdev.UInput] = {}
+        # fd → (device, uinput passthrough clone)
+        # Keyed by int fd, not InputDevice: evdev.InputDevice defines __eq__
+        # without __hash__ making it unhashable and unusable as a dict key.
+        self._gamepad_relays: dict[int, tuple[evdev.InputDevice, evdev.UInput]] = {}
         # paths already grabbed (avoid double-grab on rescan)
         self._grabbed_paths: set[str] = set()
         self._pending_abs: dict = {}
@@ -374,7 +376,7 @@ class InputRelay:
                         # apps inside labwc (e.g. Steam under gamescope).
                         ui = evdev.UInput.from_device(dev,
                                                       name=f"labwc:{real_name}")
-                        self._gamepad_relays[dev] = ui
+                        self._gamepad_relays[dev.fd] = (dev, ui)
                         print(f"[relay] grabbed gamepad {path} ({real_name}), "
                               f"re-emitting via uinput as 'labwc:{real_name}'",
                               flush=True)
@@ -400,6 +402,11 @@ class InputRelay:
                if k.startswith("gamepad:") and v not in self._grabbed_paths}
         if new:
             self._open_devices(new)
+
+    def _gamepad_uinput(self, fd: int):
+        """Return the UInput clone for a gamepad fd, or None."""
+        entry = self._gamepad_relays.get(fd)
+        return entry[1] if entry else None
 
     def _connect_wayland(self, protocols_cache: Path):
         (ZwlrVPManager, ZwlrVP,
@@ -451,8 +458,8 @@ class InputRelay:
     def _dispatch_evdev_event(self, event: evdev.InputEvent,
                                source_dev: evdev.InputDevice):
         # Gamepad: verbatim passthrough to uinput clone.
-        if source_dev in self._gamepad_relays:
-            ui = self._gamepad_relays[source_dev]
+        ui = self._gamepad_uinput(source_dev.fd)
+        if ui is not None:
             try:
                 ui.write(event.type, event.code, event.value)
             except Exception:
@@ -519,7 +526,7 @@ class InputRelay:
                 dev.close()
             except Exception:
                 pass
-        for dev, ui in self._gamepad_relays.items():
+        for _fd, (dev, ui) in self._gamepad_relays.items():
             try:
                 dev.ungrab()
                 dev.close()
@@ -593,7 +600,7 @@ class InputRelay:
 
             def _build_fds() -> dict[int, evdev.InputDevice]:
                 fds = {dev.fd: dev for dev in self._devices}
-                fds.update({dev.fd: dev for dev in self._gamepad_relays})
+                fds.update({fd: dev for fd, (dev, _ui) in self._gamepad_relays.items()})
                 return fds
 
             dev_fds = _build_fds()

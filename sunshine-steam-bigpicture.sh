@@ -36,12 +36,19 @@ if [[ -f "${PS_PID_FILE}" ]]; then
 fi
 
 # Steam uses a single-instance IPC pipe (~/.steam/steam.pipe). Any new
-# invocation sends its arguments to the already-running instance and exits,
-# even with a different WAYLAND_DISPLAY. Kill the physical-desktop Steam so
-# the new invocation starts a fresh process connected to labwc.
-echo "[steam-bp] stopping existing Steam instance" >&2
-pkill -x steam 2>/dev/null || true
-sleep 2
+# invocation delegates to the running instance and exits immediately, even
+# with a different WAYLAND_DISPLAY. pkill -x steam kills only the main
+# process; helpers (steamwebhelper, pressure-vessel, etc.) keep the pipe
+# alive. Kill everything steam-related and wait for the pipe to vanish.
+echo "[steam-bp] stopping all Steam processes" >&2
+pkill -f steam 2>/dev/null || true
+for _i in $(seq 1 40); do
+    [[ -e "${HOME}/.steam/steam.pipe" ]] || break
+    sleep 0.25
+done
+# Final hard kill if anything survived
+pkill -KILL -f steam 2>/dev/null || true
+sleep 0.5
 
 LOG="${XDG_RUNTIME_DIR}/sunshine-labwc/steam-bigpicture.log"
 echo "[steam-bp] starting Steam gamepadui on ${WAYLAND_DISPLAY}" >&2
