@@ -34,6 +34,14 @@ export AT_SPI_BUS_ADDRESS=
 WIDTH="${SUNSHINE_CLIENT_WIDTH:-1920}"
 HEIGHT="${SUNSHINE_CLIENT_HEIGHT:-1080}"
 
+# Steam uses a single-instance IPC pipe (~/.steam/steam.pipe).  Any new
+# "steam" invocation sends its arguments to the already-running instance and
+# exits — even inside gamescope.  We must kill the existing Steam first so
+# gamescope gets a real Steam process as its client.
+echo "[steam-bp] stopping existing Steam instance" >&2
+pkill -x steam 2>/dev/null || true
+sleep 2
+
 if command -v gamescope &>/dev/null; then
     echo "[steam-bp] using gamescope ${WIDTH}x${HEIGHT}" >&2
     # -e  : Steam integration mode (overlay, HDR hints, etc.)
@@ -45,10 +53,5 @@ if command -v gamescope &>/dev/null; then
         -e -f \
         -- steam -gamepadui
 else
-    # gamescope not installed.  Kill the KDE Steam instance so our labwc one
-    # gets the device.  User can relaunch Steam on KDE after disconnecting.
-    echo "[steam-bp] gamescope not found; stopping existing Steam instance" >&2
-    pkill -x steam 2>/dev/null || true
-    sleep 2
     exec steam -gamepadui
 fi
