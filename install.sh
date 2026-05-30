@@ -30,7 +30,6 @@ Wants=graphical-session.target
 
 [Service]
 Type=simple
-Environment=WAYLAND_DISPLAY=wayland-0
 Environment=XDG_RUNTIME_DIR=/run/user/%U
 ExecStartPre=/bin/sleep 12
 ExecStart=${ROOT}/sunshine-vmon-service.sh

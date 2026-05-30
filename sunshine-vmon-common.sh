@@ -17,8 +17,16 @@ import_plasma_session_env() {
   fi
 
   if [[ -z "${WAYLAND_DISPLAY:-}" ]]; then
-    local wl_socket
-    wl_socket="$(find "${XDG_RUNTIME_DIR}" -maxdepth 1 -name 'wayland-*' -type s 2>/dev/null | head -1)"
+    local wl_socket labwc_sock_name labwc_target
+    # If labwc is running, its socket is reachable via the wayland-stream symlink.
+    # Exclude it so kscreen-doctor connects to KDE, not labwc.
+    labwc_sock_name=""
+    if [[ -L "${XDG_RUNTIME_DIR}/wayland-stream" ]]; then
+      labwc_target="$(readlink -f "${XDG_RUNTIME_DIR}/wayland-stream" 2>/dev/null)"
+      labwc_sock_name="${labwc_target##*/}"
+    fi
+    wl_socket="$(find "${XDG_RUNTIME_DIR}" -maxdepth 1 -name 'wayland-[0-9]*' -type s 2>/dev/null \
+      | grep -v "/${labwc_sock_name}$" | head -1)"
     if [[ -n "${wl_socket}" ]]; then
       export WAYLAND_DISPLAY="${wl_socket##*/}"
     else
