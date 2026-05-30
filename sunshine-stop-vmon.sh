@@ -9,6 +9,7 @@ unset WAYLAND_DISPLAY  # Sunshine inherits wayland-stream; vmon needs KDE's sock
 import_plasma_session_env
 init_primary_output
 apply_idle_layout
+set_sunshine_capture wlr
 set_sunshine_output "${PRIMARY_OUTPUT}"
 
 # Restore wayland-stream back to the labwc socket so future labwc streams work.

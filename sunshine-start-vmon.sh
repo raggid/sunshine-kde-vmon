@@ -24,6 +24,7 @@ if ! virtual_output_enabled; then
   exit 1
 fi
 
+set_sunshine_capture kwin
 set_sunshine_output "${VMON_OUTPUT}"
 
 # Redirect wayland-stream to KDE's socket so Sunshine's wlr capture sees the

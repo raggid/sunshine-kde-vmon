@@ -277,6 +277,12 @@ apply_custom_mode() {
   kscreen-doctor "output.${VMON_OUTPUT}.addCustomMode.${WIDTH}.${HEIGHT}.${FPS_MHZ}.full" 2>/dev/null || true
 }
 
+set_sunshine_capture() {
+  local method="$1"
+  sed -i '/^capture/d' "${SUNSHINE_CONF}"
+  echo "capture = ${method}" >> "${SUNSHINE_CONF}"
+}
+
 set_sunshine_output() {
   local output="$1"
   sed -i '/^output_name/d' "${SUNSHINE_CONF}"
@@ -288,5 +294,6 @@ abort_stream_layout() {
   echo "sunshine-vmon: restaurando layout apos falha..." >&2
   apply_idle_layout || force_enable_all_physical || true
   init_primary_output
+  set_sunshine_capture wlr
   set_sunshine_output "${PRIMARY_OUTPUT}"
 }
