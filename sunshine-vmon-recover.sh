@@ -8,6 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/sunshine-vmon-common.sh"
 
 export QT_QPA_PLATFORM=wayland
+unset WAYLAND_DISPLAY  # ensure detection finds KDE's socket, not labwc's
 import_plasma_session_env
 
 echo "sunshine-vmon-recover: XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR}"
