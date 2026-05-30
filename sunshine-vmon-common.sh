@@ -319,5 +319,5 @@ abort_stream_layout() {
   echo "sunshine-vmon: restaurando layout apos falha..." >&2
   apply_idle_layout || force_enable_all_physical || true
   init_primary_output
-  set_sunshine_output "${PRIMARY_OUTPUT}"
+  kscreen-doctor "output.${PRIMARY_OUTPUT}.position.0,0" 2>/dev/null || true
 }
