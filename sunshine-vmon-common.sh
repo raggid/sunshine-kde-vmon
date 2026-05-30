@@ -277,28 +277,28 @@ apply_custom_mode() {
   kscreen-doctor "output.${VMON_OUTPUT}.addCustomMode.${WIDTH}.${HEIGHT}.${FPS_MHZ}.full" 2>/dev/null || true
 }
 
-# Return the X coordinate where the virtual monitor should be placed (right
-# edge of the primary output in logical pixels). Echoes a plain integer.
-get_primary_right_edge() {
+# Compute positions to place the virtual monitor to the left of the primary
+# output. Prints two lines: "VMON_X,VMON_Y" then "PRIMARY_X,PRIMARY_Y".
+# vmon sits at (0,0); primary shifts right by vmon's logical width.
+get_left_positions() {
   [[ -n "${PRIMARY_OUTPUT}" ]] || init_primary_output
   kscreen-doctor -j 2>/dev/null | python3 -c "
 import json, sys, math
 data = json.load(sys.stdin)
 primary = '${PRIMARY_OUTPUT}'
+vmon = '${VMON_OUTPUT}'
+primary_scale = 1.0
+vmon_scale = 1.1
+
 for o in data.get('outputs', []):
-    if o.get('name') != primary:
-        continue
-    pos = o.get('pos', {})
-    scale = o.get('scale', 1.0)
-    mode_id = o.get('currentModeId')
-    mode = next((m for m in o.get('modes', []) if m.get('id') == mode_id), None)
-    if not mode:
-        break
-    w = mode.get('size', {}).get('width', 0)
-    logical_w = math.ceil(w / scale)
-    print(pos.get('x', 0) + logical_w)
-    sys.exit(0)
-print(3440)
+    if o.get('name') == primary:
+        primary_scale = o.get('scale', 1.0)
+    if o.get('name') == vmon:
+        vmon_scale = o.get('scale', 1.1)
+
+vmon_logical_w = math.ceil(${WIDTH} / vmon_scale)
+print(f'0,0')
+print(f'{vmon_logical_w},0')
 " 2>/dev/null
 }
 

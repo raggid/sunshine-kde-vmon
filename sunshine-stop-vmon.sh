@@ -9,3 +9,5 @@ unset WAYLAND_DISPLAY
 import_plasma_session_env
 init_primary_output
 apply_idle_layout
+# Restore primary output to origin after vmon is disabled.
+kscreen-doctor "output.${PRIMARY_OUTPUT}.position.0,0" 2>/dev/null || true
