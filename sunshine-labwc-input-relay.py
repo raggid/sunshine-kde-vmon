@@ -514,6 +514,10 @@ class InputRelay:
 
             dev_fds = {dev.fd: dev for dev in self._devices}
 
+            _CORE_NAMES = {"Mouse passthrough", "Mouse passthrough (absolute)",
+                           "Keyboard passthrough", "Polaris Mouse passthrough",
+                           "Polaris Keyboard passthrough"}
+
             # Inner loop: forward events until the server destroys its devices.
             # Only select on evdev fds — we only send to Wayland (never receive),
             # so including wayland_fd in select causes a busy-loop as labwc
@@ -530,6 +534,14 @@ class InputRelay:
                     if late:
                         self._open_devices(late)
                         dev_fds = {dev.fd: dev for dev in self._devices}
+                    # Break only if no core devices remain.
+                    core_alive = any(
+                        dev.path in self._grabbed_paths
+                        for dev in self._devices
+                        if hasattr(dev, 'name') and dev.name in _CORE_NAMES
+                    )
+                    if not self._devices or not core_alive:
+                        break
                     continue
 
                 for fd in rlist:
@@ -541,9 +553,14 @@ class InputRelay:
                         except OSError:
                             print(f"[relay] device {dev.path} lost", flush=True)
                             dev_fds.pop(fd, None)
+                            try:
+                                self._devices.remove(dev)
+                            except ValueError:
+                                pass
+                            self._grabbed_paths.discard(dev.path)
 
-            # All devices gone — clean up grabs and loop back to wait.
-            print("[relay] all devices lost; waiting for next session…", flush=True)
+            # Core devices gone — clean up grabs and loop back to wait.
+            print("[relay] core devices lost; waiting for next session…", flush=True)
             self._release_devices()
 
 
