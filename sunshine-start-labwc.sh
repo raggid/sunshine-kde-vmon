@@ -56,11 +56,12 @@ fi
 
 # Start input relay so mouse/keyboard go to labwc, not KDE.
 # Stopped in sunshine-stop-labwc.sh (undo-cmd).
-if ! pgrep -f sunshine-labwc-input-relay.py >/dev/null 2>&1; then
+if ! pgrep -x python3 >/dev/null 2>&1 || ! ps aux | grep -q '[s]unshine-labwc-input-relay.py'; then
   if python3 -c "import evdev, pywayland" 2>/dev/null; then
     WAYLAND_DISPLAY="${LABWC_SOCKET_LINK_NAME}" \
     XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR}" \
-      python3 "${SCRIPT_DIR}/sunshine-labwc-input-relay.py" &
+      python3 "${SCRIPT_DIR}/sunshine-labwc-input-relay.py" \
+        >> "${XDG_RUNTIME_DIR}/sunshine-labwc/relay.log" 2>&1 &
     echo $! > "$(_relay_pid_file)"
     echo "sunshine-start-labwc: input relay started (pid=$(cat "$(_relay_pid_file)"))" >&2
   fi

@@ -23,5 +23,5 @@ if [[ -f "${RELAY_PID_FILE}" ]]; then
   kill "$(cat "${RELAY_PID_FILE}")" 2>/dev/null || true
   rm -f "${RELAY_PID_FILE}"
 fi
-pkill -f sunshine-labwc-input-relay.py 2>/dev/null || true
+pkill -f '[s]unshine-labwc-input-relay.py' 2>/dev/null || true
 echo "sunshine-stop-labwc: input relay stopped" >&2
