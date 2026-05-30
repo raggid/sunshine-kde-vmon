@@ -290,7 +290,9 @@ def _find_sunshine_devices() -> dict[str, str]:
         if cur_name in _SUNSHINE_DEVICE_NAMES:
             found[cur_name] = path
         elif cur_sysfs and "/virtual/input/" in cur_sysfs:
-            if _is_virtual_gamepad(path):
+            # Skip our own re-emitted devices — they start with "labwc:" and
+            # re-grabbing them creates an exponential feedback loop.
+            if not cur_name.startswith("labwc:") and _is_virtual_gamepad(path):
                 found[f"gamepad:{cur_name}"] = path
         cur_name = cur_event = cur_sysfs = None
 
@@ -394,14 +396,6 @@ class InputRelay:
                       "add user to 'input' group", flush=True)
             except Exception as e:
                 print(f"[relay] WARN: could not grab {path}: {e}", flush=True)
-
-    def _rescan_gamepads(self):
-        """Check for newly connected Sunshine gamepads and grab them."""
-        dev_map = _find_sunshine_devices()
-        new = {k: v for k, v in dev_map.items()
-               if k.startswith("gamepad:") and v not in self._grabbed_paths}
-        if new:
-            self._open_devices(new)
 
     def _gamepad_uinput(self, fd: int):
         """Return the UInput clone for a gamepad fd, or None."""
@@ -604,27 +598,19 @@ class InputRelay:
                 return fds
 
             dev_fds = _build_fds()
-            last_rescan = time.monotonic()
 
             # Inner loop: forward events until the server destroys its devices.
             # Only select on evdev fds — we only send to Wayland (never receive),
             # so including wayland_fd in select causes a busy-loop as labwc
             # continuously sends protocol events we don't consume.
+            # No periodic gamepad rescan: rescanning picks up our own labwc:
+            # re-emitted devices (feedback loop) and Steam Input's virtual output
+            # (which must stay readable by Steam to route input to games).
             while dev_fds:
                 try:
                     rlist, _, _ = select.select(list(dev_fds), [], [], 5.0)
                 except (OSError, ValueError):
                     break
-
-                now = time.monotonic()
-                if now - last_rescan >= 5.0:
-                    prev_count = len(self._gamepad_relays)
-                    self._rescan_gamepads()
-                    if len(self._gamepad_relays) != prev_count:
-                        dev_fds = _build_fds()
-                        print(f"[relay] {len(self._gamepad_relays)} gamepad(s) now active",
-                              flush=True)
-                    last_rescan = now
 
                 for fd in rlist:
                     if fd in dev_fds:
