@@ -493,6 +493,10 @@ class InputRelay:
             while True:
                 dev_map = _find_sunshine_devices()
                 if dev_map:
+                    # Mouse appears before keyboard; wait briefly so all
+                    # devices register before we break out.
+                    time.sleep(1.0)
+                    dev_map = _find_sunshine_devices()
                     break
                 try:
                     r, _, _ = select.select([wayland_fd], [], [], 5.0)
@@ -516,9 +520,17 @@ class InputRelay:
             # continuously sends protocol events we don't consume.
             while dev_fds:
                 try:
-                    rlist, _, _ = select.select(list(dev_fds), [], [], 5.0)
+                    rlist, _, _ = select.select(list(dev_fds), [], [], 2.0)
                 except (OSError, ValueError):
                     break
+
+                # On timeout, check for devices that registered after initial grab.
+                if not rlist:
+                    late = _find_sunshine_devices()
+                    if late:
+                        self._open_devices(late)
+                        dev_fds = {dev.fd: dev for dev in self._devices}
+                    continue
 
                 for fd in rlist:
                     if fd in dev_fds:
