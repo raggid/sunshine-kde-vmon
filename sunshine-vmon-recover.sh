@@ -17,6 +17,7 @@ echo "sunshine-vmon-recover: DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS
 echo "sunshine-vmon-recover: QT_QPA_PLATFORM=${QT_QPA_PLATFORM}"
 
 init_primary_output
+set_sunshine_output "${VMON_OUTPUT}"
 echo "sunshine-vmon-recover: monitor fisico alvo: ${PRIMARY_OUTPUT}"
 
 if ! kscreen_outputs_ready; then

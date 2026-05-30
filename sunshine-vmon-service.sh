@@ -51,6 +51,10 @@ else
   apply_custom_mode
 fi
 
+# Keep Sunshine pointed at the virtual monitor permanently so it reads the
+# right output_name before running the prep-cmd at connection time.
+set_sunshine_output "${VMON_OUTPUT}"
+
 apply_idle_layout || exit 1
 
 wait "${KRFB_PID}"

@@ -9,4 +9,3 @@ unset WAYLAND_DISPLAY
 import_plasma_session_env
 init_primary_output
 apply_idle_layout
-set_sunshine_output "${PRIMARY_OUTPUT}"
