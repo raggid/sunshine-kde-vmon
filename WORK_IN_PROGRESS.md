@@ -1,21 +1,23 @@
-# Work In Progress — 2026-05-30
+# Work In Progress — 2026-05-30 (updated)
 
 ## System State
 
-Two Wayland sockets coexist at login:
-- `wayland-0` → labwc compositor (`sunshine-labwc.service`)
-- `wayland-1` → KDE/KWin
-- `wayland-stream` → symlink to `wayland-0` (managed by labwc service)
+**Mode: kwin / vmon only** (labwc disabled — headless mode kept in repo for future work)
 
-Sunshine has `WAYLAND_DISPLAY=wayland-stream` locked via:
-`~/.config/systemd/user/sunshine.service.d/labwc-stream.conf`
+Single Wayland socket at login:
+- `wayland-0` → KDE/KWin (after next login without labwc)
+- *Current session only*: KDE is on `wayland-1` because labwc grabbed `wayland-0` first in the previous session
 
-`sunshine.conf` at idle: `capture = wlr`, `output_name = HEADLESS-1`
+`sunshine.conf` at idle: `capture = kwin`, `output_name = DP-1`
+
+Drop-in `~/.config/systemd/user/sunshine.service.d/kwin-wayland.conf`:
+- Sets `WAYLAND_DISPLAY=wayland-1` for this session only
+- **Remove after next login** — the base `sunshine.service` unit already has `wayland-0` which will be correct when labwc is absent
 
 Services:
-- `sunshine-labwc.service` — enabled, running
-- `sunshine-vmon.service` — **disabled** (pending fix)
-- `sunshine.service` — enabled, running
+- `sunshine-labwc.service` — **disabled**
+- `sunshine-vmon.service` — enabled, running ✓
+- `sunshine.service` — enabled, running with `capture = kwin` ✓
 
 ---
 
@@ -75,16 +77,12 @@ Relay log (`/run/user/1000/sunshine-labwc/relay.log`) confirms:
 - Check if labwc requires `wl_seat` capability announcement before button/key events are accepted
 - Try adding `+8` offset to evdev keycodes before passing to `vk.key()`
 
-### 2. vmon mode — disabled, needs Sunshine restart to switch capture method
+### 2. vmon mode — **RESOLVED** (2026-05-30)
 
-`capture` in `sunshine.conf` is read at **Sunshine startup only**, not per-connection.
-`capture = wlr` is needed for labwc; `capture = kwin` is needed for KDE/vmon.
-Since Sunshine has `WAYLAND_DISPLAY=wayland-stream` locked, it connects to labwc and can't see the KDE virtual monitor with `capture = wlr`.
+Switched permanently to `capture = kwin`. labwc mode disabled. No per-stream capture switching needed.
 
-**Plan (not yet implemented)**:
-1. `sunshine-start-vmon.sh` changes `sunshine.conf` (`capture = kwin`, `output_name = Virtual-sunshine-vmon`) and redirects `wayland-stream → wayland-1`
-2. Checks if Sunshine is already running with `capture = kwin` (via conf file check)
-3. If not: clears EXIT trap, restarts `sunshine.service` in background, exits 0
-4. Moonlight auto-reconnects to the restarted Sunshine (now using `capture = kwin` + KDE socket)
-5. Second connection: conf already correct, stream proceeds normally
-6. `sunshine-stop-vmon.sh` restores `capture = wlr`, `output_name = HEADLESS-1`, `wayland-stream → wayland-0`
+- Removed `labwc-stream.conf` drop-in (was locking Sunshine to labwc socket)
+- Removed `set_sunshine_capture` calls from vmon scripts (capture is always kwin)
+- Removed `wayland-stream` redirect blocks (no labwc to manage)
+- `sunshine-vmon.service` enabled and running
+- `sunshine.service` restarts cleanly with kwin capture + NVENC working

@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=sunshine-vmon-common.sh
 source "${SCRIPT_DIR}/sunshine-vmon-common.sh"
 
-unset WAYLAND_DISPLAY  # Sunshine inherits wayland-stream; vmon needs KDE's socket
+unset WAYLAND_DISPLAY
 import_plasma_session_env
 trap '[[ $? -ne 0 ]] && abort_stream_layout' EXIT
 
@@ -24,17 +24,6 @@ if ! virtual_output_enabled; then
   exit 1
 fi
 
-set_sunshine_capture kwin
 set_sunshine_output "${VMON_OUTPUT}"
-
-# Redirect wayland-stream to KDE's socket so Sunshine's wlr capture sees the
-# vmon. The labwc socket name is saved by sunshine-stop-vmon.sh for restore.
-LABWC_SOCKET_FILE="${XDG_RUNTIME_DIR}/sunshine-labwc/labwc.socket"
-WAYLAND_STREAM_LINK="${XDG_RUNTIME_DIR}/wayland-stream"
-if [[ -L "${WAYLAND_STREAM_LINK}" ]]; then
-  readlink "${WAYLAND_STREAM_LINK}" > "${XDG_RUNTIME_DIR}/sunshine-labwc/wayland-stream.bak" 2>/dev/null || true
-  ln -sf "${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}" "${WAYLAND_STREAM_LINK}"
-  echo "sunshine-vmon: wayland-stream → ${WAYLAND_DISPLAY}" >&2
-fi
 
 trap - EXIT
