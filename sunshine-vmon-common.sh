@@ -229,6 +229,17 @@ apply_idle_layout() {
 
   if virtual_output_present; then
     disable_virtual_monitor || true
+    # KDE's kscreen config restore may re-enable the virtual output after krfb
+    # registers it. Retry until it actually stays disabled (up to 3 seconds).
+    local _i
+    for _i in $(seq 1 6); do
+      sleep 0.5
+      if virtual_output_enabled; then
+        disable_virtual_monitor || true
+      else
+        break
+      fi
+    done
   fi
 
   ensure_primary_monitor || force_enable_all_physical
