@@ -16,3 +16,12 @@ if labwc_is_running; then
 fi
 
 echo "sunshine-stop-labwc: reset to idle ${LABWC_IDLE_WIDTH}x${LABWC_IDLE_HEIGHT}@${LABWC_IDLE_FPS}Hz" >&2
+
+# Stop input relay so Sunshine's devices are released back to the system.
+RELAY_PID_FILE="$(_relay_pid_file)"
+if [[ -f "${RELAY_PID_FILE}" ]]; then
+  kill "$(cat "${RELAY_PID_FILE}")" 2>/dev/null || true
+  rm -f "${RELAY_PID_FILE}"
+fi
+pkill -f sunshine-labwc-input-relay.py 2>/dev/null || true
+echo "sunshine-stop-labwc: input relay stopped" >&2

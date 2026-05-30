@@ -53,3 +53,15 @@ if command -v plasmashell >/dev/null 2>&1 && ! pgrep -x plasmashell >/dev/null 2
     dbus-run-session -- plasmashell 2>/dev/null &
   echo "$!" > "$(_plasmashell_pid_file)"
 fi
+
+# Start input relay so mouse/keyboard go to labwc, not KDE.
+# Stopped in sunshine-stop-labwc.sh (undo-cmd).
+if ! pgrep -f sunshine-labwc-input-relay.py >/dev/null 2>&1; then
+  if python3 -c "import evdev, pywayland" 2>/dev/null; then
+    WAYLAND_DISPLAY="${LABWC_SOCKET_LINK_NAME}" \
+    XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR}" \
+      python3 "${SCRIPT_DIR}/sunshine-labwc-input-relay.py" &
+    echo $! > "$(_relay_pid_file)"
+    echo "sunshine-start-labwc: input relay started (pid=$(cat "$(_relay_pid_file)"))" >&2
+  fi
+fi

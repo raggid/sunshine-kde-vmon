@@ -201,20 +201,10 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Launch input relay — grabs Sunshine uinput devices, forwards to labwc.
-# Requires the user to be in the 'input' group (or service uses SupplementaryGroups=input).
-# ---------------------------------------------------------------------------
-if python3 -c "import evdev, pywayland" 2>/dev/null; then
-  WAYLAND_DISPLAY="${LABWC_SOCKET_LINK_NAME}" \
-  XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR}" \
-    python3 "${SCRIPT_DIR}/sunshine-labwc-input-relay.py" &
-  RELAY_PID=$!
-  echo "sunshine-labwc: input relay started (pid=${RELAY_PID})" >&2
-else
-  echo "sunshine-labwc: python-evdev or python-pywayland not installed — mouse/keyboard stay on KDE" >&2
-fi
-
-# ---------------------------------------------------------------------------
 # Wait for labwc to exit
 # ---------------------------------------------------------------------------
+# Note: input relay is started/stopped by sunshine-start-labwc.sh /
+# sunshine-stop-labwc.sh (prep-cmd / undo-cmd) so it only runs during an
+# active stream, not persistently. This avoids grabbing Sunshine's uinput
+# devices when a vmon stream is active.
 wait "${LABWC_PID}"

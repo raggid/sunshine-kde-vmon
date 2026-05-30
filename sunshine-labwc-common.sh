@@ -34,6 +34,7 @@ _socket_file()       { echo "${_LABWC_STATE_DIR}/labwc.socket"; }
 _display_file()      { echo "${_LABWC_STATE_DIR}/labwc.display"; }
 _env_file()          { echo "${_LABWC_STATE_DIR}/labwc.env"; }
 _plasmashell_pid_file() { echo "${_LABWC_STATE_DIR}/plasmashell.pid"; }
+_relay_pid_file()      { echo "${_LABWC_STATE_DIR}/relay.pid"; }
 _socket_link()       { echo "${XDG_RUNTIME_DIR}/${LABWC_SOCKET_LINK_NAME}"; }
 
 labwc_is_running() {
