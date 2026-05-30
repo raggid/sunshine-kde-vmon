@@ -25,4 +25,15 @@ if ! virtual_output_enabled; then
 fi
 
 set_sunshine_output "${VMON_OUTPUT}"
+
+# Redirect wayland-stream to KDE's socket so Sunshine's wlr capture sees the
+# vmon. The labwc socket name is saved by sunshine-stop-vmon.sh for restore.
+LABWC_SOCKET_FILE="${XDG_RUNTIME_DIR}/sunshine-labwc/labwc.socket"
+WAYLAND_STREAM_LINK="${XDG_RUNTIME_DIR}/wayland-stream"
+if [[ -L "${WAYLAND_STREAM_LINK}" ]]; then
+  readlink "${WAYLAND_STREAM_LINK}" > "${XDG_RUNTIME_DIR}/sunshine-labwc/wayland-stream.bak" 2>/dev/null || true
+  ln -sf "${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}" "${WAYLAND_STREAM_LINK}"
+  echo "sunshine-vmon: wayland-stream → ${WAYLAND_DISPLAY}" >&2
+fi
+
 trap - EXIT
