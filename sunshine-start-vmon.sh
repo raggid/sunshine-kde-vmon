@@ -14,12 +14,16 @@ init_primary_output
 ensure_virtual_monitor || exit 1
 apply_custom_mode
 
+# Compute position before enabling so we can include it in the same
+# atomic kscreen-doctor call — avoids KDE restoring a cloned layout
+# between a separate enable and position call.
+VMON_X="$(get_primary_right_edge)"
+
 kscreen-doctor \
   "output.${VMON_OUTPUT}.enable" \
   "output.${VMON_OUTPUT}.mode.${RES}@${FPS}" \
-  "output.${VMON_OUTPUT}.priority.1"
-
-position_virtual_monitor
+  "output.${VMON_OUTPUT}.priority.1" \
+  "output.${VMON_OUTPUT}.position.${VMON_X},0"
 
 if ! virtual_output_enabled; then
   echo "sunshine-vmon: ${VMON_OUTPUT} nao ficou habilitado." >&2

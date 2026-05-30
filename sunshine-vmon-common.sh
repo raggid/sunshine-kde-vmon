@@ -277,12 +277,11 @@ apply_custom_mode() {
   kscreen-doctor "output.${VMON_OUTPUT}.addCustomMode.${WIDTH}.${HEIGHT}.${FPS_MHZ}.full" 2>/dev/null || true
 }
 
-# Place the virtual monitor to the right of the primary physical output so
-# KDE treats them as an extended desktop rather than a clone.
-position_virtual_monitor() {
+# Return the X coordinate where the virtual monitor should be placed (right
+# edge of the primary output in logical pixels). Echoes a plain integer.
+get_primary_right_edge() {
   [[ -n "${PRIMARY_OUTPUT}" ]] || init_primary_output
-  local right_edge
-  right_edge="$(kscreen-doctor -j 2>/dev/null | python3 -c "
+  kscreen-doctor -j 2>/dev/null | python3 -c "
 import json, sys, math
 data = json.load(sys.stdin)
 primary = '${PRIMARY_OUTPUT}'
@@ -300,8 +299,7 @@ for o in data.get('outputs', []):
     print(pos.get('x', 0) + logical_w)
     sys.exit(0)
 print(3440)
-" 2>/dev/null)"
-  kscreen-doctor "output.${VMON_OUTPUT}.position.${right_edge},0" 2>/dev/null || true
+" 2>/dev/null
 }
 
 set_sunshine_capture() {
