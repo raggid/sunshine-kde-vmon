@@ -4,20 +4,19 @@
 
 **Mode: kwin / vmon only** (labwc disabled — headless mode kept in repo for future work)
 
-Single Wayland socket at login:
-- `wayland-0` → KDE/KWin (after next login without labwc)
-- *Current session only*: KDE is on `wayland-1` because labwc grabbed `wayland-0` first in the previous session
-
-`sunshine.conf` at idle: `capture = kwin`, `output_name = DP-1`
-
-Drop-in `~/.config/systemd/user/sunshine.service.d/kwin-wayland.conf`:
-- Sets `WAYLAND_DISPLAY=wayland-1` for this session only
-- **Remove after next login** — the base `sunshine.service` unit already has `wayland-0` which will be correct when labwc is absent
+- `wayland-0` → KDE/KWin
+- `sunshine.conf`: `capture = kwin`, `output_name = Virtual-sunshine-vmon` (permanent)
+- No Sunshine drop-in override needed — base unit has `wayland-0`, KDE takes it at login
 
 Services:
 - `sunshine-labwc.service` — **disabled**
 - `sunshine-vmon.service` — enabled, running ✓
 - `sunshine.service` — enabled, running with `capture = kwin` ✓
+
+Monitor layout during stream:
+- `Virtual-sunshine-vmon` at `(0, 0)` — captured by Sunshine, streamed to client
+- `DP-1` shifted right to `(vmon_logical_width, 0)`
+- Restored to `DP-1` at `(0, 0)` when stream ends
 
 ---
 
@@ -47,42 +46,32 @@ Touch/Pen passthrough devices are destroyed mid-session. Lost devices were left 
 - Remove lost devices from `self._devices` and `self._grabbed_paths` on loss
 - Inner loop now only exits when core devices (mouse/keyboard) are gone
 
+### Switched to kwin capture; vmon mode fully restored (commits 4a864c5, 239a2e6, 7f3c0b8)
+labwc mode disabled. vmon streaming working end-to-end.
+
+Key discoveries and fixes:
+1. **`capture` is startup-only** — can't switch per-stream. Solution: stay on `capture = kwin` permanently.
+2. **`output_name` is read before prep-cmd runs** — setting it inside `sunshine-start-vmon.sh` was always too late; Sunshine had already selected DP-1. Fix: `sunshine-vmon-service.sh` sets `output_name = Virtual-sunshine-vmon` at startup and keeps it there permanently.
+3. **KDE clone mode** — both monitors at `x=0` caused KDE to treat them as mirrors. Fix: atomic `kscreen-doctor` call sets enable + mode + priority + position together; vmon placed at `(0,0)`, DP-1 shifted right.
+4. **wayland-stream drop-in removed** — was locking Sunshine to the labwc socket. Now Sunshine inherits KDE's socket from the systemd user environment (KDE propagates it at login).
+
 ---
 
-## Still Broken
+## Still Open
 
-### 1. Headless stream input — mouse moves, clicks and keyboard do nothing
+### Headless stream input — mouse moves, clicks and keyboard do nothing
 
-Relay log (`/run/user/1000/sunshine-labwc/relay.log`) confirms:
-- Virtual pointer created ✓
-- Virtual keyboard created + keymap sent ✓
-- All 5 devices grabbed (event16–20: Mouse, Mouse abs, Keyboard, Touch, Pen) ✓
-- Touch/Pen passthrough lost mid-session — now handled correctly ✓
+labwc mode is disabled but kept in the repo. When resuming:
 
-**What is happening**: cursor moves (relative motion works), but mouse buttons and all keyboard input are ignored by apps.
+Relay log (`/run/user/1000/sunshine-labwc/relay.log`) confirmed all devices grabbed and virtual pointer/keyboard created. Cursor moves but buttons and keys are ignored.
 
 **Hypotheses**:
-1. `zwp_virtual_keyboard_v1` keycode offset — XKB keycodes = evdev + 8. The relay sends raw evdev codes; need to verify labwc adds the offset or expects XKB codes directly.
-2. Silent Wayland protocol error in pywayland — errors may be swallowed without logging.
-3. labwc focus issue — virtual pointer moves cursor but compositor doesn't deliver button/keyboard events to the focused surface.
-4. `vp.button()` or `vk.key()` call signatures wrong for the labwc version in use.
+1. `zwp_virtual_keyboard_v1` keycode offset — XKB = evdev + 8; relay sends raw evdev codes.
+2. Silent Wayland protocol error in pywayland.
+3. labwc focus issue — compositor not delivering events to focused surface.
+4. `vp.button()` / `vk.key()` call signatures wrong for installed labwc version.
 
-**Next steps to try**:
-- Run the relay manually with visible output while streaming to watch for errors:
-  ```
-  WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/1000 \
-    python3 /home/raggid/projects/sunshine-kde-vmon/sunshine-labwc-input-relay.py
-  ```
-- Test `wtype` / `ydotool` directly against `WAYLAND_DISPLAY=wayland-0` to verify labwc accepts synthetic input at all
-- Check if labwc requires `wl_seat` capability announcement before button/key events are accepted
-- Try adding `+8` offset to evdev keycodes before passing to `vk.key()`
-
-### 2. vmon mode — **RESOLVED** (2026-05-30)
-
-Switched permanently to `capture = kwin`. labwc mode disabled. No per-stream capture switching needed.
-
-- Removed `labwc-stream.conf` drop-in (was locking Sunshine to labwc socket)
-- Removed `set_sunshine_capture` calls from vmon scripts (capture is always kwin)
-- Removed `wayland-stream` redirect blocks (no labwc to manage)
-- `sunshine-vmon.service` enabled and running
-- `sunshine.service` restarts cleanly with kwin capture + NVENC working
+**Next steps**:
+- Test `wtype` / `ydotool` against `WAYLAND_DISPLAY=wayland-0` to verify labwc accepts synthetic input at all
+- Run relay manually with visible output during a stream
+- Try `+8` offset on evdev keycodes passed to `vk.key()`
