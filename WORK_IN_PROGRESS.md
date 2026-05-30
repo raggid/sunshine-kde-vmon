@@ -57,6 +57,18 @@ Key discoveries and fixes:
 
 ---
 
+## Apps (current state)
+
+| App | prep-cmd | Notes |
+|-----|----------|-------|
+| Desktop | `sunshine-start-vmon.sh` | vmon beside DP-1 (left), both active |
+| Desktop Exclusive | `sunshine-start-exclusive.sh` | vmon only, DP-1 disabled |
+| Steam Big Picture | `sunshine-start-exclusive.sh` | exclusive + Steam gamepadui |
+
+All undo via `sunshine-stop-vmon.sh` (re-enables DP-1, disables vmon, restores position).
+
+---
+
 ## Still Open
 
 ### Headless stream input — mouse moves, clicks and keyboard do nothing
