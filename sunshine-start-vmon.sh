@@ -19,6 +19,8 @@ kscreen-doctor \
   "output.${VMON_OUTPUT}.mode.${RES}@${FPS}" \
   "output.${VMON_OUTPUT}.priority.1"
 
+position_virtual_monitor
+
 if ! virtual_output_enabled; then
   echo "sunshine-vmon: ${VMON_OUTPUT} nao ficou habilitado." >&2
   exit 1
