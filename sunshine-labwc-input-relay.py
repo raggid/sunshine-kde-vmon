@@ -376,8 +376,17 @@ class InputRelay:
                     try:
                         # Clone all capabilities; new device is visible to
                         # apps inside labwc (e.g. Steam under gamescope).
-                        ui = evdev.UInput.from_device(dev,
-                                                      name=f"labwc:{real_name}")
+                        # Explicitly copy VID/PID/version/bustype: from_device
+                        # defaults to 0x0001 for all if not overridden, which
+                        # breaks SDL2 controller-database lookup in many games.
+                        ui = evdev.UInput.from_device(
+                            dev,
+                            name=f"labwc:{real_name}",
+                            vendor=dev.info.vendor,
+                            product=dev.info.product,
+                            version=dev.info.version,
+                            bustype=dev.info.bustype,
+                        )
                         self._gamepad_relays[dev.fd] = (dev, ui)
                         print(f"[relay] grabbed gamepad {path} ({real_name}), "
                               f"re-emitting via uinput as 'labwc:{real_name}'",
@@ -396,6 +405,19 @@ class InputRelay:
                       "add user to 'input' group", flush=True)
             except Exception as e:
                 print(f"[relay] WARN: could not grab {path}: {e}", flush=True)
+
+    def _rescan_gamepads(self):
+        """Grab any newly appeared Sunshine gamepads and relay them via uinput.
+
+        Safe to call periodically: _find_sunshine_devices already filters out
+        devices whose name starts with "labwc:" (our own re-emissions), so this
+        cannot create a feedback loop.
+        """
+        dev_map = _find_sunshine_devices()
+        new = {k: v for k, v in dev_map.items()
+               if k.startswith("gamepad:") and v not in self._grabbed_paths}
+        if new:
+            self._open_devices(new)
 
     def _gamepad_uinput(self, fd: int):
         """Return the UInput clone for a gamepad fd, or None."""
@@ -598,19 +620,27 @@ class InputRelay:
                 return fds
 
             dev_fds = _build_fds()
+            last_rescan = time.monotonic()
 
             # Inner loop: forward events until the server destroys its devices.
             # Only select on evdev fds — we only send to Wayland (never receive),
             # so including wayland_fd in select causes a busy-loop as labwc
             # continuously sends protocol events we don't consume.
-            # No periodic gamepad rescan: rescanning picks up our own labwc:
-            # re-emitted devices (feedback loop) and Steam Input's virtual output
-            # (which must stay readable by Steam to route input to games).
             while dev_fds:
                 try:
                     rlist, _, _ = select.select(list(dev_fds), [], [], 5.0)
                 except (OSError, ValueError):
                     break
+
+                now = time.monotonic()
+                if now - last_rescan >= 5.0:
+                    prev_count = len(self._gamepad_relays)
+                    self._rescan_gamepads()
+                    if len(self._gamepad_relays) != prev_count:
+                        dev_fds = _build_fds()
+                        print(f"[relay] {len(self._gamepad_relays)} gamepad(s) now active",
+                              flush=True)
+                    last_rescan = now
 
                 for fd in rlist:
                     if fd in dev_fds:
