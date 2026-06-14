@@ -7,19 +7,20 @@ UNIT="${SYSTEMD_USER}/sunshine-vmon.service"
 ENABLE_SERVICE="${SUNSHINE_VMON_ENABLE_SERVICE:-ask}"
 
 chmod +x \
-  "${ROOT}/sunshine-vmon-common.sh" \
-  "${ROOT}/sunshine-vmon-service.sh" \
-  "${ROOT}/sunshine-vmon-recover.sh" \
-  "${ROOT}/sunshine-start-vmon.sh" \
-  "${ROOT}/sunshine-stop-vmon.sh" \
-  "${ROOT}/sunshine-labwc-common.sh" \
-  "${ROOT}/sunshine-labwc-service.sh" \
-  "${ROOT}/sunshine-labwc-recover.sh" \
-  "${ROOT}/sunshine-start-labwc.sh" \
-  "${ROOT}/sunshine-stop-labwc.sh" \
-  "${ROOT}/sunshine-labwc-run.sh" \
-  "${ROOT}/sunshine-labwc-input-relay.py" \
-  "${ROOT}/sunshine-steam-bigpicture.sh"
+  "${ROOT}/vmon/sunshine-vmon-common.sh" \
+  "${ROOT}/vmon/sunshine-vmon-service.sh" \
+  "${ROOT}/vmon/sunshine-vmon-recover.sh" \
+  "${ROOT}/vmon/sunshine-start-vmon.sh" \
+  "${ROOT}/vmon/sunshine-stop-vmon.sh" \
+  "${ROOT}/vmon/sunshine-start-exclusive.sh" \
+  "${ROOT}/headless/sunshine-labwc-common.sh" \
+  "${ROOT}/headless/sunshine-labwc-service.sh" \
+  "${ROOT}/headless/sunshine-labwc-recover.sh" \
+  "${ROOT}/headless/sunshine-start-labwc.sh" \
+  "${ROOT}/headless/sunshine-stop-labwc.sh" \
+  "${ROOT}/headless/sunshine-labwc-run.sh" \
+  "${ROOT}/headless/sunshine-labwc-input-relay.py" \
+  "${ROOT}/headless/sunshine-steam-bigpicture.sh"
 
 mkdir -p "${SYSTEMD_USER}"
 cat > "${UNIT}" <<EOF
@@ -32,7 +33,7 @@ Wants=graphical-session.target
 Type=simple
 Environment=XDG_RUNTIME_DIR=/run/user/%U
 ExecStartPre=/bin/sleep 12
-ExecStart=${ROOT}/sunshine-vmon-service.sh
+ExecStart=${ROOT}/vmon/sunshine-vmon-service.sh
 Restart=on-failure
 RestartSec=10
 TimeoutStartSec=120
@@ -54,7 +55,7 @@ Wants=graphical-session.target
 [Service]
 Type=simple
 Environment=XDG_RUNTIME_DIR=/run/user/%U
-ExecStart=${ROOT}/sunshine-labwc-service.sh
+ExecStart=${ROOT}/headless/sunshine-labwc-service.sh
 Restart=on-failure
 RestartSec=5
 TimeoutStartSec=60
@@ -171,5 +172,5 @@ fi
 
 echo ""
 echo "Scripts em: ${ROOT}"
-echo "Recuperacao (vmon): ${ROOT}/sunshine-vmon-recover.sh"
-echo "Recuperacao (labwc): ${ROOT}/sunshine-labwc-recover.sh"
+echo "Recuperacao (vmon): ${ROOT}/vmon/sunshine-vmon-recover.sh"
+echo "Recuperacao (labwc): ${ROOT}/headless/sunshine-labwc-recover.sh"

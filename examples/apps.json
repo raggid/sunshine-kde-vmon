@@ -9,8 +9,8 @@
             "name": "Desktop",
             "prep-cmd": [
                 {
-                    "do": "/home/USER/projects/sunshine-kde-vmon/sunshine-start-vmon.sh",
-                    "undo": "/home/USER/projects/sunshine-kde-vmon/sunshine-stop-vmon.sh"
+                    "do": "/home/USER/projects/sunshine-kde-vmon/vmon/sunshine-start-vmon.sh",
+                    "undo": "/home/USER/projects/sunshine-kde-vmon/vmon/sunshine-stop-vmon.sh"
                 }
             ],
             "uuid": "EE4A7268-2E91-C50B-DB88-4C26F785AC53",
@@ -25,8 +25,8 @@
             "name": "Desktop Headless",
             "prep-cmd": [
                 {
-                    "do": "/home/USER/projects/sunshine-kde-vmon/sunshine-start-labwc.sh",
-                    "undo": "/home/USER/projects/sunshine-kde-vmon/sunshine-stop-labwc.sh"
+                    "do": "/home/USER/projects/sunshine-kde-vmon/headless/sunshine-start-labwc.sh",
+                    "undo": "/home/USER/projects/sunshine-kde-vmon/headless/sunshine-stop-labwc.sh"
                 }
             ],
             "uuid": "D9F5A617-8C43-4B21-AE32-5F6172839405",
@@ -34,24 +34,43 @@
         },
         {
             "auto-detach": true,
-            "detached": [
-                "setsid /home/USER/projects/sunshine-kde-vmon/sunshine-steam-bigpicture.sh"
-            ],
             "exclude-global-prep-cmd": false,
             "exit-timeout": 30,
             "image-path": "steam.png",
             "name": "Steam Big Picture",
             "prep-cmd": [
                 {
-                    "do": "/home/USER/projects/sunshine-kde-vmon/sunshine-start-labwc.sh",
-                    "undo": "/home/USER/projects/sunshine-kde-vmon/sunshine-stop-labwc.sh"
+                    "do": "/home/USER/projects/sunshine-kde-vmon/vmon/sunshine-start-vmon.sh",
+                    "undo": "/home/USER/projects/sunshine-kde-vmon/vmon/sunshine-stop-vmon.sh"
+                },
+                {
+                    "do": "setsid steam steam://open/bigpicture",
+                    "undo": "setsid steam steam://close/bigpicture 2>/dev/null; true"
+                }
+            ],
+            "uuid": "71856C4E-B04C-5A01-2E9D-0A3DE917B4DA",
+            "wait-all": true
+        },
+        {
+            "auto-detach": true,
+            "detached": [
+                "setsid /home/USER/projects/sunshine-kde-vmon/headless/sunshine-steam-bigpicture.sh"
+            ],
+            "exclude-global-prep-cmd": false,
+            "exit-timeout": 30,
+            "image-path": "steam.png",
+            "name": "Steam Big Picture (Headless)",
+            "prep-cmd": [
+                {
+                    "do": "/home/USER/projects/sunshine-kde-vmon/headless/sunshine-start-labwc.sh",
+                    "undo": "/home/USER/projects/sunshine-kde-vmon/headless/sunshine-stop-labwc.sh"
                 },
                 {
                     "do": "",
                     "undo": "setsid steam -shutdown 2>/dev/null; true"
                 }
             ],
-            "uuid": "71856C4E-B04C-5A01-2E9D-0A3DE917B4DA",
+            "uuid": "82967D5F-9D54-5C32-3FA0-1B4EF896CB85",
             "wait-all": true
         }
     ],

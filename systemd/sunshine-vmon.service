@@ -7,7 +7,7 @@ Wants=graphical-session.target
 Type=simple
 Environment=XDG_RUNTIME_DIR=/run/user/%U
 ExecStartPre=/bin/sleep 12
-ExecStart=%h/projects/sunshine-kde-vmon/sunshine-vmon-service.sh
+ExecStart=%h/projects/sunshine-kde-vmon/vmon/sunshine-vmon-service.sh
 Restart=on-failure
 RestartSec=10
 TimeoutStartSec=120
