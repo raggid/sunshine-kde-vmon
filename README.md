@@ -5,15 +5,17 @@ Scripts para streaming com [Sunshine](https://github.com/LizardByte/Sunshine) no
 Dois modos independentes:
 
 - **vmon** — monitor virtual dentro da sessão KDE. O desktop físico continua visível; o stream captura apenas o monitor virtual.
-- **labwc** — compositor Wayland headless separado. O stream roda num desktop completamente isolado (painel, janelas, apps próprios), sem tocar na sessão KDE física.
+- **headless** — compositor Wayland headless separado (labwc). O stream roda num desktop completamente isolado (painel, janelas, apps próprios), sem tocar na sessão KDE física.
 
-## Três apps no Moonlight
+## Apps no Moonlight
 
 | App | Modo | Comportamento |
 |-----|------|---------------|
-| **Desktop** | vmon | Monitor virtual ligado ao lado do físico; os dois coexistem |
-| **Desktop Headless** | labwc | Desktop KDE (plasmashell) isolado; o físico fica intacto |
-| **Steam Big Picture** | labwc | Steam Big Picture dentro do desktop headless |
+| **Desktop** | vmon | Monitor virtual ao lado do físico; os dois coexistem |
+| **Desktop Exclusive** | vmon | Monitor virtual como única saída ativa; físico desligado durante o stream |
+| **Steam Big Picture** | vmon | Steam Big Picture no monitor virtual exclusivo; abre/fecha via `steam://` sem reiniciar o Steam |
+| **Desktop Headless** | headless | Desktop KDE (plasmashell) isolado no labwc; o físico fica intacto |
+| **Steam Big Picture (Headless)** | headless | Steam Big Picture dentro do desktop headless |
 
 ## Instalação
 
@@ -23,17 +25,27 @@ cd ~/projects/sunshine-kde-vmon
 ./install.sh
 ```
 
-O instalador habilita os serviços e escreve o drop-in para o `sunshine.service`. Veja `examples/apps.json` para os `prep-cmd` (substitua `/home/USER/` pelo caminho real).
+O instalador habilita os serviços e escreve os drop-ins para o `sunshine.service`. Veja `examples/apps.json` para os `prep-cmd` (substitua `/home/USER/` pelo caminho real).
+
+## Estrutura
+
+```
+vmon/       — scripts do modo vmon e biblioteca compartilhada
+headless/   — scripts do modo headless (labwc) e biblioteca compartilhada
+systemd/    — units e drop-ins de referência
+examples/   — apps.json de exemplo para o Sunshine
+install.sh  — instala ambos os modos, units e drop-ins
+```
 
 ## Requisitos
 
-### vmon mode
+### vmon
 - KDE Plasma 6 (Wayland)
 - `krfb-virtualmonitor` (pacote `krfb`)
 - `kscreen-doctor` (pacote `kscreen`)
 - `capture = kwin` no `sunshine.conf`
 
-### labwc mode
+### headless
 - `labwc`, `wlr-randr`
 - `python-evdev`, `python-pywayland` (relay de input)
 - `swaybg` (fallback de wallpaper)
@@ -75,20 +87,22 @@ systemctl --user status sunshine-labwc.service
 
 ### vmon — tela preta
 
+O drop-in `sunshine.service.d/vmon-recovery.conf` (instalado automaticamente) executa `vmon/sunshine-stop-vmon.sh` via `ExecStopPost` sempre que o Sunshine para, inclusive em crash. A recuperação manual só é necessária se o drop-in não estiver instalado.
+
 ```bash
-./sunshine-vmon-recover.sh
+./vmon/sunshine-vmon-recover.sh
 # De root no TTY:
 sudo -u raggid \
   XDG_RUNTIME_DIR=/run/user/1000 \
   WAYLAND_DISPLAY=wayland-0 \
   DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus \
-  ./sunshine-vmon-recover.sh
+  ./vmon/sunshine-vmon-recover.sh
 ```
 
-### labwc
+### headless
 
 ```bash
-./sunshine-labwc-recover.sh
+./headless/sunshine-labwc-recover.sh
 # ou
 systemctl --user restart sunshine-labwc.service
 ```
@@ -99,7 +113,7 @@ systemctl --user restart sunshine-labwc.service
 |----------|--------|------|
 | `SUNSHINE_PRIMARY_OUTPUT` | _(auto)_ | vmon |
 | `SUNSHINE_VMON_WIDTH/HEIGHT/FPS` | `1920/1080/60` | vmon |
-| `SUNSHINE_LABWC_IDLE_WIDTH/HEIGHT/FPS` | `1920/1080/60` | labwc |
+| `SUNSHINE_LABWC_IDLE_WIDTH/HEIGHT/FPS` | `1920/1080/60` | headless |
 
 ## Licença
 
