@@ -16,12 +16,13 @@ trap '[[ $? -ne 0 ]] && abort_stream_layout' EXIT
 
 init_primary_output
 ensure_virtual_monitor || exit 1
-apply_custom_mode
 
 # Enable vmon at origin — it will be the only active output.
+# Do NOT change the vmon mode here: Sunshine opens the KWin screencast before
+# the prep-cmd runs, so a resolution change would tear down the PipeWire
+# session mid-negotiation and prevent any video from flowing.
 kscreen-doctor \
   "output.${VMON_OUTPUT}.enable" \
-  "output.${VMON_OUTPUT}.mode.${RES}@${FPS}" \
   "output.${VMON_OUTPUT}.priority.1" \
   "output.${VMON_OUTPUT}.position.0,0"
 
