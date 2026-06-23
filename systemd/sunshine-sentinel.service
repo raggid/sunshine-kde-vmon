@@ -1,0 +1,16 @@
+[Unit]
+Description=Sunshine sentinel virtual monitor (always connected, never visible)
+After=graphical-session.target plasma-workspace.target
+Wants=graphical-session.target
+
+[Service]
+Type=simple
+Environment=XDG_RUNTIME_DIR=/run/user/%U
+ExecStartPre=/bin/sleep 12
+ExecStart=%h/projects/sunshine-kde-vmon/vmon-simple/sentinel-service.sh
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=120
+
+[Install]
+WantedBy=default.target

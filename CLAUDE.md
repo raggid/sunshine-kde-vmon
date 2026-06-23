@@ -4,19 +4,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this project does
 
-Shell scripts for [Sunshine](https://github.com/LizardByte/Sunshine) game streaming on KDE Plasma (Wayland). Two independent streaming modes are provided:
+Shell scripts for [Sunshine](https://github.com/LizardByte/Sunshine) game streaming on KDE Plasma (Wayland). Three independent streaming modes are provided:
 
-- **vmon mode** (original): A virtual KDE monitor (`krfb-virtualmonitor`) lives in the same KDE Plasma session. Physical and stream desktops share the compositor; KDE can give each output its own panel and virtual-desktop stack.
-- **headless mode** (new): A completely separate headless Wayland compositor (labwc) runs as a persistent service. Sunshine is redirected to capture from labwc's `HEADLESS-1` output. The physical KDE session is **never touched** — each side has fully independent windows, panels, virtual desktops, and launched apps.
+- **vmon-simple mode** (recommended): A virtual KDE monitor is created on-demand at stream start at the client's exact resolution, then destroyed on stop. A lightweight sentinel service keeps a dummy virtual output permanently connected so Sunshine never sees "zero outputs". Requires `capture = kwin`.
+- **vmon mode** (original): A virtual KDE monitor lives persistently in the KDE session (created at login via a systemd service). The stream resolution is fixed to the service's configured resolution — it cannot adapt per client. Works without a physical monitor. Requires `capture = kwin`.
+- **headless mode**: A completely separate headless Wayland compositor (labwc) runs as a persistent service. Sunshine is redirected to capture from labwc's `HEADLESS-1` output. The physical KDE session is **never touched** — each side has fully independent windows, panels, virtual desktops, and launched apps. Requires `capture = wlr`.
 
 ## Installation / service management
 
 ```bash
-# Install both modes (asks interactively about each)
+# Install (asks interactively which mode to enable)
 ./install.sh
 
 # Force-enable specific modes without interactive prompts
-SUNSHINE_VMON_ENABLE_SERVICE=yes SUNSHINE_LABWC_ENABLE_SERVICE=no ./install.sh
+SUNSHINE_VMON_MODE=simple SUNSHINE_LABWC_ENABLE_SERVICE=no ./install.sh
+SUNSHINE_VMON_MODE=service SUNSHINE_LABWC_ENABLE_SERVICE=no ./install.sh
+SUNSHINE_VMON_MODE=none SUNSHINE_LABWC_ENABLE_SERVICE=yes ./install.sh
+
+# vmon-simple mode lifecycle
+systemctl --user start sunshine-sentinel.service
+systemctl --user status sunshine-sentinel.service
+systemctl --user restart sunshine-sentinel.service
 
 # vmon mode lifecycle
 systemctl --user start sunshine-vmon.service
@@ -28,7 +36,7 @@ systemctl --user start sunshine-labwc.service
 systemctl --user status sunshine-labwc.service
 systemctl --user restart sunshine-labwc.service
 
-# Inspect KDE monitor state (vmon mode)
+# Inspect KDE monitor state (vmon modes)
 kscreen-doctor -o
 
 # Inspect labwc compositor outputs (headless mode)
@@ -38,14 +46,28 @@ WAYLAND_DISPLAY=wayland-stream wlr-randr
 ## Repository structure
 
 ```
-vmon/       — vmon mode scripts and shared library
-headless/   — headless (labwc) mode scripts and shared library
-systemd/    — reference systemd unit and drop-in files
-examples/   — example apps.json for Sunshine
-install.sh  — installs both modes, systemd units, and drop-ins
+vmon-simple/ — vmon-simple mode: on-demand vmon + sentinel service
+vmon/        — vmon mode: persistent service-based virtual monitor
+headless/    — headless (labwc) mode scripts and shared library
+systemd/     — reference systemd unit and drop-in files
+examples/    — example apps.json for Sunshine
+install.sh   — installs chosen mode(s), systemd units, and drop-ins
 ```
 
 ## Architecture
+
+### vmon-simple mode (`vmon-simple/`)
+
+All vmon logic is shared from **`vmon/sunshine-vmon-common.sh`**. The simple scripts source it directly.
+
+| Script | Role |
+|--------|------|
+| `sentinel-service.sh` | Persistent systemd service: creates `Virtual-sunshine-idle` at login, keeps it disabled. Ensures Sunshine always sees at least one connected output. |
+| `start-desktop.sh` | prep-cmd `do`: kills any leftover krfb, creates `Virtual-sunshine-vmon` at client resolution, enables it alongside the physical monitor |
+| `start-exclusive.sh` | prep-cmd `do` (exclusive): same as above but disables the physical monitor |
+| `stop.sh` | prep-cmd `undo`: restores idle layout, kills the stream krfb (sentinel krfb stays alive) |
+
+**Why on-demand creation fixes per-client resolution:** with the sentinel running, `Virtual-sunshine-idle` exists but `Virtual-sunshine-vmon` does not. `sunshine.conf` has `output_name = Virtual-sunshine-vmon`. When a client connects, KWin cannot open a screencast for a non-existent output, so Sunshine runs the prep-cmd first. The prep-cmd creates `Virtual-sunshine-vmon` at the client's exact resolution, then Sunshine opens the screencast against it. No scaling, no mode-change race.
 
 ### vmon mode (`vmon/`)
 
@@ -76,6 +98,7 @@ Shared logic lives in **`headless/sunshine-labwc-common.sh`**. No kscreen-doctor
 
 | File | Purpose |
 |------|---------|
+| `sunshine-sentinel.service` | Reference unit for the vmon-simple sentinel |
 | `sunshine-vmon.service` | Reference unit for the vmon persistent service |
 | `sunshine-labwc.service` | Reference unit for the headless persistent service |
 | `sunshine-vmon-override.conf` | Drop-in for `sunshine.service`: runs `sunshine-stop-vmon.sh` via `ExecStopPost` so physical monitors are restored even on Sunshine crash |
@@ -121,6 +144,18 @@ On NVIDIA with wlroots 0.19+, `WLR_BACKENDS=headless` causes `wlr-screencopy` to
 
 ## Environment variables
 
+### vmon-simple mode
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `SUNSHINE_PRIMARY_OUTPUT` | _(auto)_ | Force a specific physical connector (e.g. `DP-1`) |
+| `SUNSHINE_CLIENT_WIDTH/HEIGHT/FPS` | `1920/1080/60` | Set by Sunshine at stream start (used directly for vmon size) |
+| `SUNSHINE_VMON_NAME` | `sunshine-vmon` | Name of the stream virtual monitor |
+| `SUNSHINE_VMON_PORT` | `5905` | krfb VNC port |
+| `SUNSHINE_VMON_PASSWORD` | `sunshinepass` | krfb VNC password |
+| `SUNSHINE_SENTINEL_NAME` | `sunshine-idle` | Name of the sentinel virtual monitor |
+| `SUNSHINE_SENTINEL_PORT` | `5906` | krfb VNC port for the sentinel |
+
 ### vmon mode
 
 | Variable | Default | Purpose |
@@ -132,7 +167,7 @@ On NVIDIA with wlroots 0.19+, `WLR_BACKENDS=headless` causes `wlr-screencopy` to
 | `SUNSHINE_VMON_PORT` | `5905` | krfb VNC port |
 | `SUNSHINE_VMON_PASSWORD` | `sunshinepass` | krfb VNC password |
 
-Override service defaults via a drop-in:
+Override vmon service defaults via a drop-in:
 ```
 ~/.config/systemd/user/sunshine-vmon.service.d/override.conf
 [Service]

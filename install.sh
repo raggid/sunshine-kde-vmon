@@ -3,9 +3,11 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SYSTEMD_USER="${HOME}/.config/systemd/user"
-UNIT="${SYSTEMD_USER}/sunshine-vmon.service"
-ENABLE_SERVICE="${SUNSHINE_VMON_ENABLE_SERVICE:-ask}"
+SUNSHINE_OVERRIDE_DIR="${SYSTEMD_USER}/sunshine.service.d"
 
+# ---------------------------------------------------------------------------
+# Torna todos os scripts executáveis
+# ---------------------------------------------------------------------------
 chmod +x \
   "${ROOT}/vmon/sunshine-vmon-common.sh" \
   "${ROOT}/vmon/sunshine-vmon-service.sh" \
@@ -13,6 +15,10 @@ chmod +x \
   "${ROOT}/vmon/sunshine-start-vmon.sh" \
   "${ROOT}/vmon/sunshine-stop-vmon.sh" \
   "${ROOT}/vmon/sunshine-start-exclusive.sh" \
+  "${ROOT}/vmon-simple/sentinel-service.sh" \
+  "${ROOT}/vmon-simple/start-desktop.sh" \
+  "${ROOT}/vmon-simple/start-exclusive.sh" \
+  "${ROOT}/vmon-simple/stop.sh" \
   "${ROOT}/headless/sunshine-labwc-common.sh" \
   "${ROOT}/headless/sunshine-labwc-service.sh" \
   "${ROOT}/headless/sunshine-labwc-recover.sh" \
@@ -23,7 +29,33 @@ chmod +x \
   "${ROOT}/headless/sunshine-steam-bigpicture.sh"
 
 mkdir -p "${SYSTEMD_USER}"
-cat > "${UNIT}" <<EOF
+
+# ---------------------------------------------------------------------------
+# Escreve os unit files
+# ---------------------------------------------------------------------------
+
+# sentinel (vmon-simple)
+cat > "${SYSTEMD_USER}/sunshine-sentinel.service" <<EOF
+[Unit]
+Description=Sunshine sentinel virtual monitor (always connected, never visible)
+After=graphical-session.target plasma-workspace.target
+Wants=graphical-session.target
+
+[Service]
+Type=simple
+Environment=XDG_RUNTIME_DIR=/run/user/%U
+ExecStartPre=/bin/sleep 12
+ExecStart=${ROOT}/vmon-simple/sentinel-service.sh
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=120
+
+[Install]
+WantedBy=default.target
+EOF
+
+# vmon (persistente)
+cat > "${SYSTEMD_USER}/sunshine-vmon.service" <<EOF
 [Unit]
 Description=Sunshine virtual monitor (persistent, disabled when idle)
 After=graphical-session.target plasma-workspace.target
@@ -42,13 +74,8 @@ TimeoutStartSec=120
 WantedBy=default.target
 EOF
 
-LABWC_UNIT="${SYSTEMD_USER}/sunshine-labwc.service"
-SUNSHINE_OVERRIDE_DIR="${SYSTEMD_USER}/sunshine.service.d"
-LABWC_OVERRIDE_DIR="${SUNSHINE_OVERRIDE_DIR}"
-LABWC_OVERRIDE="${LABWC_OVERRIDE_DIR}/labwc-stream.conf"
-VMON_OVERRIDE="${SUNSHINE_OVERRIDE_DIR}/vmon-recovery.conf"
-
-cat > "${LABWC_UNIT}" <<EOF
+# labwc (headless)
+cat > "${SYSTEMD_USER}/sunshine-labwc.service" <<EOF
 [Unit]
 Description=Sunshine headless stream compositor (labwc)
 After=graphical-session.target
@@ -69,94 +96,121 @@ EOF
 systemctl --user daemon-reload
 
 # ---------------------------------------------------------------------------
-# vmon mode (virtual KDE monitor — existing behaviour)
+# Modo vmon  (vmon-simple e vmon são mutuamente exclusivos)
 # ---------------------------------------------------------------------------
-do_enable=false
-case "${ENABLE_SERVICE}" in
-  1|yes|true)
-    do_enable=true
-    ;;
-  0|no|false)
-    do_enable=false
-    ;;
+echo ""
+echo "=== Modo vmon (monitor virtual no KDE) ==="
+echo ""
+echo "  1) vmon-simple  — monitor criado por stream na resolucao exata do cliente"
+echo "                    Servico sentinela garante que Sunshine nao veja 'zero outputs'"
+echo "  2) vmon         — monitor persistente criado no login com resolucao fixa"
+echo "                    Funciona sem monitor fisico; nao ajusta resolucao por cliente"
+echo "  0) nenhum"
+echo ""
+
+VMON_OVERRIDE="${SUNSHINE_OVERRIDE_DIR}/vmon-recovery.conf"
+
+vmon_mode=""
+case "${SUNSHINE_VMON_MODE:-ask}" in
+  simple|1) vmon_mode="simple" ;;
+  service|vmon|2) vmon_mode="service" ;;
+  0|none|no|false) vmon_mode="none" ;;
   ask|*)
-    echo ""
-    echo "O servico sunshine-vmon roda no login e pode afetar o layout de monitores."
-    echo "Versoes anteriores causaram tela preta se o fisico ficou desligado no KDE."
-    echo "A versao atual corrige isso, mas teste antes de habilitar no boot."
-    echo ""
-    read -r -p "Habilitar sunshine-vmon.service agora? [s/N] " reply
-    if [[ "${reply}" =~ ^[sSyY] ]]; then
-      do_enable=true
-    fi
+    read -r -p "Modo vmon [1]: " vmon_reply
+    case "${vmon_reply:-1}" in
+      2|vmon|service) vmon_mode="service" ;;
+      0|none|no) vmon_mode="none" ;;
+      *) vmon_mode="simple" ;;
+    esac
     ;;
 esac
 
-if [[ "${do_enable}" == true ]]; then
-  systemctl --user enable --now sunshine-vmon.service
-  echo "sunshine-vmon.service habilitado."
+case "${vmon_mode}" in
+  simple)
+    systemctl --user disable --now sunshine-vmon.service 2>/dev/null || true
+    systemctl --user enable --now sunshine-sentinel.service
+    echo "sunshine-sentinel.service habilitado."
 
-  # Install ExecStopPost drop-in so Sunshine restores the physical layout
-  # even if it crashes mid-stream (undo-cmd would not have run).
-  mkdir -p "${SUNSHINE_OVERRIDE_DIR}"
-  cat > "${VMON_OVERRIDE}" <<EOF
+    mkdir -p "${SUNSHINE_OVERRIDE_DIR}"
+    cat > "${VMON_OVERRIDE}" <<EOF
+# Generated by sunshine-kde-vmon install.sh — vmon-simple crash recovery.
+# Remove este arquivo para desabilitar a restauracao automatica do layout.
+[Service]
+ExecStopPost=${ROOT}/vmon-simple/stop.sh
+EOF
+    systemctl --user daemon-reload
+    echo "Drop-in de recuperacao instalado: ${VMON_OVERRIDE}"
+    echo ""
+    echo "apps.json: use vmon-simple/start-desktop.sh e vmon-simple/start-exclusive.sh"
+    echo "sunshine.conf: capture = kwin  |  output_name = Virtual-sunshine-vmon"
+    ;;
+
+  service)
+    systemctl --user disable --now sunshine-sentinel.service 2>/dev/null || true
+    systemctl --user enable --now sunshine-vmon.service
+    echo "sunshine-vmon.service habilitado."
+
+    mkdir -p "${SUNSHINE_OVERRIDE_DIR}"
+    cat > "${VMON_OVERRIDE}" <<EOF
 # Generated by sunshine-kde-vmon install.sh — vmon crash recovery.
-# Remove this file to disable automatic layout restore on Sunshine stop.
+# Remove este arquivo para desabilitar a restauracao automatica do layout.
 [Service]
 ExecStopPost=${ROOT}/vmon/sunshine-stop-vmon.sh
 EOF
-  systemctl --user daemon-reload
-  echo "Drop-in de recuperacao instalado em: ${VMON_OVERRIDE}"
-else
-  systemctl --user disable sunshine-vmon.service 2>/dev/null || true
-  # Remove the drop-in if vmon is being disabled.
-  if [[ -f "${VMON_OVERRIDE}" ]]; then
-    rm -f "${VMON_OVERRIDE}"
     systemctl --user daemon-reload
-    echo "Drop-in de recuperacao removido."
-  fi
-  echo "Servico instalado mas NAO habilitado no boot."
-  echo "Para testar manualmente: systemctl --user start sunshine-vmon.service"
-fi
+    echo "Drop-in de recuperacao instalado: ${VMON_OVERRIDE}"
+    echo ""
+    echo "apps.json: use vmon/sunshine-start-vmon.sh e vmon/sunshine-start-exclusive.sh"
+    echo "sunshine.conf: capture = kwin  |  output_name = Virtual-sunshine-vmon"
+    ;;
+
+  none)
+    systemctl --user disable --now sunshine-vmon.service 2>/dev/null || true
+    systemctl --user disable --now sunshine-sentinel.service 2>/dev/null || true
+    if [[ -f "${VMON_OVERRIDE}" ]]; then
+      rm -f "${VMON_OVERRIDE}"
+      systemctl --user daemon-reload
+      echo "Drop-in de recuperacao removido."
+    fi
+    echo "Modo vmon NAO habilitado."
+    ;;
+esac
 
 # ---------------------------------------------------------------------------
-# labwc mode (headless isolated compositor — new behaviour)
+# Modo headless (labwc)
 # ---------------------------------------------------------------------------
 echo ""
-echo "=== Modo labwc (compositor isolado / headless stream) ==="
+echo "=== Modo headless (compositor labwc isolado) ==="
 echo ""
-echo "Este modo inicia um compositor Wayland separado (labwc) para streaming."
-echo "A sessao KDE fisica nunca e tocada. Requer: labwc, wlr-randr."
+echo "Desktop e apps rodam num compositor Wayland separado; KDE fisico nao e tocado."
+echo "Requer: labwc, wlr-randr."
+echo "sunshine.conf: capture = wlr  |  output_name = HEADLESS-1"
 echo ""
-echo "IMPORTANTE: ao habilitar o modo labwc, o Sunshine tambem precisa de"
-echo "um override para apontar ao compositor. O instalador pode criar isso."
-echo ""
+
+LABWC_OVERRIDE="${SUNSHINE_OVERRIDE_DIR}/labwc-stream.conf"
 
 enable_labwc=false
-if [[ "${SUNSHINE_LABWC_ENABLE_SERVICE:-ask}" =~ ^(1|yes|true)$ ]]; then
-  enable_labwc=true
-elif [[ ! "${SUNSHINE_LABWC_ENABLE_SERVICE:-ask}" =~ ^(0|no|false)$ ]]; then
-  read -r -p "Habilitar sunshine-labwc.service agora? [s/N] " labwc_reply
-  if [[ "${labwc_reply}" =~ ^[sSyY] ]]; then
-    enable_labwc=true
-  fi
-fi
+case "${SUNSHINE_LABWC_ENABLE_SERVICE:-ask}" in
+  1|yes|true) enable_labwc=true ;;
+  0|no|false) enable_labwc=false ;;
+  ask|*)
+    read -r -p "Habilitar sunshine-labwc.service? [s/N] " labwc_reply
+    [[ "${labwc_reply:-N}" =~ ^[sSyY] ]] && enable_labwc=true || true
+    ;;
+esac
 
 if [[ "${enable_labwc}" == true ]]; then
-  # Check input group membership (needed by input relay for mouse/keyboard isolation).
   if ! id -nG | grep -qw input; then
-    echo "AVISO: o usuario '$(id -un)' nao esta no grupo 'input'."
-    echo "O relay de input NAO podera capturar os dispositivos Sunshine."
-    echo "Para corrigir (requer logout apos):"
-    echo "  sudo usermod -aG input $(id -un)"
+    echo "AVISO: usuario '$(id -un)' nao esta no grupo 'input'."
+    echo "  O relay de input nao podera capturar dispositivos Sunshine."
+    echo "  Para corrigir (requer logout): sudo usermod -aG input $(id -un)"
     echo ""
   fi
 
-  # Write sunshine.service drop-in so Sunshine captures from labwc.
-  mkdir -p "${LABWC_OVERRIDE_DIR}"
+  mkdir -p "${SUNSHINE_OVERRIDE_DIR}"
   cat > "${LABWC_OVERRIDE}" <<'OVERRIDE'
 # Generated by sunshine-kde-vmon install.sh — labwc stream mode.
-# Remove this file to revert Sunshine to capturing from KDE Plasma.
+# Remove este arquivo para reverter o Sunshine para captura do KDE Plasma.
 [Unit]
 After=sunshine-labwc.service
 Requires=sunshine-labwc.service
@@ -168,26 +222,23 @@ OVERRIDE
   systemctl --user daemon-reload
   systemctl --user enable --now sunshine-labwc.service
   echo "sunshine-labwc.service habilitado."
-  echo "Drop-in instalado em: ${LABWC_OVERRIDE}"
+  echo "Drop-in instalado: ${LABWC_OVERRIDE}"
   echo ""
   echo "Passos finais em ~/.config/sunshine/sunshine.conf:"
   echo "  output_name = HEADLESS-1"
-  echo "  capture = wlr          # obrigatorio — kwin nao funciona com labwc"
+  echo "  capture = wlr"
   echo ""
-  echo "Reinicie o sunshine.service para completar a configuracao:"
+  echo "Reinicie o sunshine.service:"
   echo "  systemctl --user restart sunshine.service"
 else
-  systemctl --user disable sunshine-labwc.service 2>/dev/null || true
+  systemctl --user disable --now sunshine-labwc.service 2>/dev/null || true
+  if [[ -f "${LABWC_OVERRIDE}" ]]; then
+    rm -f "${LABWC_OVERRIDE}"
+    systemctl --user daemon-reload
+    echo "Drop-in labwc removido."
+  fi
   echo "sunshine-labwc.service instalado mas NAO habilitado."
-  echo "Para ativar manualmente:"
-  echo "  systemctl --user enable --now sunshine-labwc.service"
-  echo "  mkdir -p ${LABWC_OVERRIDE_DIR}"
-  echo "  cp ${ROOT}/systemd/sunshine-labwc-sunshine-override.conf ${LABWC_OVERRIDE}"
-  echo "  systemctl --user daemon-reload"
-  echo "  # Em ~/.config/sunshine/sunshine.conf:"
-  echo "  #   output_name = HEADLESS-1"
-  echo "  #   capture = wlr"
-  echo "  systemctl --user restart sunshine.service"
+  echo "Para ativar: SUNSHINE_LABWC_ENABLE_SERVICE=yes ./install.sh"
 fi
 
 echo ""

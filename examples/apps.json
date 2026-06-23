@@ -9,11 +9,78 @@
             "name": "Desktop",
             "prep-cmd": [
                 {
+                    "do": "/home/USER/projects/sunshine-kde-vmon/vmon-simple/start-desktop.sh",
+                    "undo": "/home/USER/projects/sunshine-kde-vmon/vmon-simple/stop.sh"
+                }
+            ],
+            "uuid": "EE4A7268-2E91-C50B-DB88-4C26F785AC53",
+            "wait-all": true
+        },
+        {
+            "allow-client-commands": false,
+            "auto-detach": true,
+            "exclude-global-prep-cmd": false,
+            "exit-timeout": 30,
+            "image-path": "desktop.png",
+            "name": "Desktop Exclusive",
+            "prep-cmd": [
+                {
+                    "do": "/home/USER/projects/sunshine-kde-vmon/vmon-simple/start-exclusive.sh",
+                    "undo": "/home/USER/projects/sunshine-kde-vmon/vmon-simple/stop.sh"
+                }
+            ],
+            "uuid": "A3F8C1D2-4B5E-6F70-8A91-2C3D4E5F6071",
+            "wait-all": true
+        },
+        {
+            "auto-detach": true,
+            "exclude-global-prep-cmd": false,
+            "exit-timeout": 30,
+            "image-path": "steam.png",
+            "name": "Steam Big Picture",
+            "prep-cmd": [
+                {
+                    "do": "/home/USER/projects/sunshine-kde-vmon/vmon-simple/start-exclusive.sh",
+                    "undo": "/home/USER/projects/sunshine-kde-vmon/vmon-simple/stop.sh"
+                },
+                {
+                    "do": "setsid steam steam://open/bigpicture",
+                    "undo": "setsid steam steam://close/bigpicture 2>/dev/null; true"
+                }
+            ],
+            "uuid": "71856C4E-B04C-5A01-2E9D-0A3DE917B4DA",
+            "wait-all": true
+        },
+        {
+            "allow-client-commands": false,
+            "auto-detach": true,
+            "exclude-global-prep-cmd": false,
+            "exit-timeout": 30,
+            "image-path": "desktop.png",
+            "name": "Desktop (persistente)",
+            "prep-cmd": [
+                {
                     "do": "/home/USER/projects/sunshine-kde-vmon/vmon/sunshine-start-vmon.sh",
                     "undo": "/home/USER/projects/sunshine-kde-vmon/vmon/sunshine-stop-vmon.sh"
                 }
             ],
-            "uuid": "EE4A7268-2E91-C50B-DB88-4C26F785AC53",
+            "uuid": "B1C2D3E4-F5A6-7B8C-9D0E-1F2A3B4C5D6E",
+            "wait-all": true
+        },
+        {
+            "allow-client-commands": false,
+            "auto-detach": true,
+            "exclude-global-prep-cmd": false,
+            "exit-timeout": 30,
+            "image-path": "desktop.png",
+            "name": "Desktop Exclusive (persistente)",
+            "prep-cmd": [
+                {
+                    "do": "/home/USER/projects/sunshine-kde-vmon/vmon/sunshine-start-exclusive.sh",
+                    "undo": "/home/USER/projects/sunshine-kde-vmon/vmon/sunshine-stop-vmon.sh"
+                }
+            ],
+            "uuid": "C2D3E4F5-A6B7-8C9D-0E1F-2A3B4C5D6E7F",
             "wait-all": true
         },
         {
@@ -30,25 +97,6 @@
                 }
             ],
             "uuid": "D9F5A617-8C43-4B21-AE32-5F6172839405",
-            "wait-all": true
-        },
-        {
-            "auto-detach": true,
-            "exclude-global-prep-cmd": false,
-            "exit-timeout": 30,
-            "image-path": "steam.png",
-            "name": "Steam Big Picture",
-            "prep-cmd": [
-                {
-                    "do": "/home/USER/projects/sunshine-kde-vmon/vmon/sunshine-start-vmon.sh",
-                    "undo": "/home/USER/projects/sunshine-kde-vmon/vmon/sunshine-stop-vmon.sh"
-                },
-                {
-                    "do": "setsid steam steam://open/bigpicture",
-                    "undo": "setsid steam steam://close/bigpicture 2>/dev/null; true"
-                }
-            ],
-            "uuid": "71856C4E-B04C-5A01-2E9D-0A3DE917B4DA",
             "wait-all": true
         },
         {
